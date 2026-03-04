@@ -1,4 +1,5 @@
 
+
 // Modtaps
 #define TAB_MEH MEH_T(KC_TAB)
 
@@ -35,3 +36,9 @@
 #define CTL_QUOT MT(MOD_RCTL, KC_QUOTE)
 #define CTL_MINS MT(MOD_RCTL, KC_MINUS)
 #define ALT_ENT  MT(MOD_LALT, KC_ENT)
+
+// Actual keycodes, compared to macros above
+enum custom_keycodes {
+RGB_MODE_TOGGLE = SAFE_RANGE, // Turn between rgb_mode values as per custom_functions.c
+
+};
