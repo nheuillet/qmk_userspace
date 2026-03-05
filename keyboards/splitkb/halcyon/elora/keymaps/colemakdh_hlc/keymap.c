@@ -53,9 +53,9 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  * Base Layer: Colemak DH
  *
  * ,-------------------------------------------.                              ,-------------------------------------------.
- * |  Esc   |   1  |   2  |   3  |   4  |   5  |                              |   6  |   7  |   8  |   9  |   0  |  - _   |
+ * | Esc/Alt|   1  |   2  |   3  |   4  |   5  |                              |   6  |   7  |   8  |   9  |   0  |  - _   |
  * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
- * |  Tab   |   Q  |   W  |   F  |   P  |   B  |                              |   J  |   L  |   U  |   Y  | ;  : |  Bksp  |
+ * |Tab/Meh |   Q  |   W  |   F  |   P  |   B  |                              |   J  |   L  |   U  |   Y  | ;  : |  Bksp  |
  * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
  * | LShift |A/Shft|R/Ctrl|S/Alt |T/GUI |   G  |                              |   M  |N/GUI |E/Alt |I/Ctrl|O/Shft|RCtrl/'"|
  * |--------+------+------+------+------+------+-------------.  ,-------------+------+------+------+------+------+--------|
@@ -69,7 +69,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  * `-----------------------------------'                                              `-----------------------------------'
  */
     [_BASE] = LAYOUT_elora_hlc(
-    KC_ESC  , KC_1 ,  KC_2   ,  KC_3  ,   KC_4 ,   KC_5 ,                                        KC_6 ,  KC_7  ,  KC_8 ,   KC_9 ,  KC_0 , KC_MINUS,
+    ESC_ALT  , KC_1 ,  KC_2   ,  KC_3  ,   KC_4 ,   KC_5 ,                                        KC_6 ,  KC_7  ,  KC_8 ,   KC_9 ,  KC_0 , KC_MINUS,
     TAB_MEH , KC_Q ,  KC_W   ,  KC_F  ,   KC_P ,   KC_B ,                                        KC_J ,   KC_L ,  KC_U ,   KC_Y ,KC_SCLN, KC_BSPC,
     KC_LSFT , HRM_A,  HRM_R  ,  HRM_S ,   HRM_T,   KC_G ,                                        KC_M ,  HRM_N ,  HRM_E,   HRM_I, HRM_O , CTL_QUOT,
     KC_LCTL , KC_Z ,  KC_X   ,  KC_C  ,  KC_D  ,   KC_V , KC_LBRC,KC_GRV ,   KC_EQL   , KC_RBRC, KC_K ,   KC_H ,KC_COMM, KC_DOT ,KC_SLSH, KC_NUBS,
@@ -97,7 +97,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  * `-----------------------------------'                                              `-----------------------------------'
  */
     [_QWERTY] = LAYOUT_elora_hlc(
-     KC_ESC  , KC_1 ,  KC_2   ,  KC_3  ,   KC_4  ,   KC_5 ,                                        KC_6 ,  KC_7  ,  KC_8 ,   KC_9 ,   KC_0  , KC_MINUS,
+     ESC_ALT  , KC_1 ,  KC_2   ,  KC_3  ,   KC_4  ,   KC_5 ,                                        KC_6 ,  KC_7  ,  KC_8 ,   KC_9 ,   KC_0  , KC_MINUS,
      KC_TAB  , KC_Q ,  KC_W   ,  KC_E  ,   KC_R  ,   KC_T ,                                        KC_Y,   KC_U  ,  KC_I ,   KC_O ,   KC_P  , KC_BSPC,
      CTL_ESC , HRM_QA ,HRM_QS ,  HRM_QD,   HRM_QF,   KC_G ,                                        KC_H,   HRM_QJ, HRM_QK, HRM_QL ,HRM_QSCLN,CTL_QUOT,
      KC_LSFT , KC_Z ,  KC_X   ,  KC_C  ,   KC_V  ,   KC_B , KC_LBRC, KC_GRV,  KC_EQL,KC_RBRC,   KC_N ,  KC_M , KC_COMM, KC_DOT  ,KC_SLSH, KC_NUBS,
@@ -125,7 +125,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
      * `-----------------------------------'                                              `-----------------------------------'
      */
         [_GAMING] = LAYOUT_elora_hlc(
-        KC_ESC  , KC_1 ,  KC_2   ,  KC_3  ,   KC_4 ,   KC_5 ,                                        KC_6 ,  KC_7  ,  KC_8 ,   KC_9 ,  KC_0 , KC_MINUS,
+        ESC_ALT  , KC_1 ,  KC_2   ,  KC_3  ,   KC_4 ,   KC_5 ,                                        KC_6 ,  KC_7  ,  KC_8 ,   KC_9 ,  KC_0 , KC_MINUS,
         KC_TAB  , KC_Q ,  KC_W   ,  KC_F  ,   KC_P ,   KC_B ,                                        KC_J ,   KC_L ,  KC_U ,   KC_Y ,KC_SCLN, KC_BSPC,
         KC_LSFT , KC_A ,  KC_R   ,  KC_S  ,   KC_T ,   KC_G ,                                        KC_M ,  KC_N  ,  KC_E ,   KC_I , KC_O  , CTL_QUOT,
         KC_LCTL , KC_Z ,  KC_X   ,  KC_C  ,  KC_D  ,   KC_V , KC_LBRC,KC_GRV ,   KC_EQL   , KC_RBRC, KC_K ,   KC_H ,KC_COMM, KC_DOT ,KC_SLSH, KC_NUBS,

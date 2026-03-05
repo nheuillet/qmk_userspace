@@ -2,6 +2,7 @@
 
 // Modtaps
 #define TAB_MEH MEH_T(KC_TAB)
+#define ESC_ALT MT(MOD_LALT, KC_ESC)
 
 // Home Row mods
 // Left Side
@@ -40,5 +41,20 @@
 // Actual keycodes, compared to macros above
 enum custom_keycodes {
 RGB_MODE_TOGGLE = SAFE_RANGE, // Turn between rgb_mode values as per custom_functions.c
+UD_APO,
+UD_GRV,
+UD_TLD,
+UD_CIRC,
 
+// Accented letters
+E_ACUTE,
+E_GRV,
+E_CIRC,
+A_GRV,
+U_GRV,
+A_CIRC,
+I_CIRC,
+O_CIRC,
+U_CIRC,
+C_CED,
 };

@@ -7,10 +7,10 @@
 // #define SWAP_HANDS_ENABLE
 
 // Home row mods options
-#define PERMISSIVE_HOLD_PER_KEY
+// #define PERMISSIVE_HOLD_PER_KEY
 #define TAPPING_TERM 150
 #define TAPPING_TERM_PER_KEY
-#define QUICK_TAP_TERM 50
+#define QUICK_TAP_TERM 100
 // #undef TAPPING_FORCE_HOLD
 
 // One shot mods timeout

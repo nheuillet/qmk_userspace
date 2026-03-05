@@ -19,17 +19,17 @@ uint16_t get_tapping_term(uint16_t keycode, keyrecord_t *record) {
     }
 }
 
-bool get_permissive_hold(uint16_t keycode, keyrecord_t *record) {
-    switch (keycode) {
-        case HRM_A:
-        case HRM_R:
-        case HRM_O:
-        case HRM_I:
-            return true;
-        default:
-            return false;
-    }
-}
+// bool get_permissive_hold(uint16_t keycode, keyrecord_t *record) {
+//     switch (keycode) {
+//         case HRM_A:
+//         case HRM_R:
+//         case HRM_O:
+//         case HRM_I:
+//             return true;
+//         default:
+//             return false;
+//     }
+// }
 
 enum rgb_background {
     RGB_BG_OFF,      // No backlight
@@ -97,14 +97,72 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
 }
 
 
-bool process_record_user(uint16_t keycode, keyrecord_t *record) {
-    // const bool pressed = record->event.pressed;
-    // static layer_state_t prev_layers = 0;
+bool undead(uint16_t  character, bool pressed) {
+  if (pressed) {
+    tap_code16(character);
+    tap_code(KC_SPC);
+  }
+  return false;
+}
 
-    if (keycode == RGB_MODE_TOGGLE && record->event.pressed) {
-        current_rgb_bg = (current_rgb_bg + 1) % 2;
-        keyboard_post_init_user();  // Re-apply the RGB mode
-        return false;
+void unmod(uint16_t keycode) {
+  uint8_t mod_state = get_mods();
+  uint8_t osm_state = get_oneshot_mods();
+  uint8_t weak_mods_state = get_weak_mods();
+  /* clear_mods(); clear_oneshot_mods(); clear_macro_mods(); clear_weak_mods(); */
+  unregister_mods(MOD_MASK_SHIFT);
+  del_oneshot_mods(MOD_MASK_SHIFT);
+  del_weak_mods(MOD_MASK_SHIFT);
+  tap_code16(keycode);
+  register_mods(mod_state);
+  add_oneshot_mods(osm_state);
+  add_weak_mods(weak_mods_state);
+}
+
+bool accented_letter(uint16_t accent, uint16_t letter, bool pressed) {
+  if (pressed) {                        // On press:
+    unmod(accent);                      // Press accent, unmoded
+    register_code(letter);              // Press letter.
+  } else {                              // On release: (this is for repeats on hold down)
+    unregister_code(letter);            // Release letter
+  }                                     // If shift is pressed it'll be released by the user
+  return false;                         // Don't continue with the key handling.
+}
+
+
+bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+    const bool pressed = record->event.pressed;
+
+    switch (keycode) {
+        case RGB_MODE_TOGGLE:
+            if (record->event.pressed) {
+                current_rgb_bg = (current_rgb_bg + 1) % 2;
+                keyboard_post_init_user();  // Re-apply the RGB mode
+            }
+            return false;
+
+        // Undead characters
+        case UD_APO: return undead(KC_QUOT, pressed);
+        case UD_GRV: return undead(KC_GRV, pressed);
+        case UD_TLD: return undead(S(KC_GRV), pressed);
+        case UD_CIRC: return undead(S(KC_6), pressed);
+
+        // Accented letters
+        case E_ACUTE: return accented_letter(KC_QUOT, KC_E, pressed);
+        case E_GRV: return accented_letter(KC_GRV, KC_E, pressed);
+        case E_CIRC: return accented_letter(S(KC_6), KC_E, pressed);
+        case A_GRV: return accented_letter(KC_GRV, KC_A, pressed);
+        case U_GRV: return accented_letter(KC_GRV, KC_U, pressed);
+        case A_CIRC: return accented_letter(S(KC_6), KC_A, pressed);
+        case I_CIRC: return accented_letter(S(KC_6), KC_I, pressed);
+        case O_CIRC: return accented_letter(S(KC_6), KC_O, pressed);
+        case U_CIRC: return accented_letter(S(KC_6), KC_U, pressed);
+        case C_CED: return accented_letter(KC_QUOT, KC_C, pressed);
+
+
+        default:
+          return true;
     }
+
     return true;
 }
