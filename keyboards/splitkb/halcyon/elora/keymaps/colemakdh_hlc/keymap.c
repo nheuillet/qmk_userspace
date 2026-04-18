@@ -57,11 +57,11 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
  * |Tab/Meh |   Q  |   W  |   F  |   P  |   B  |                              |   J  |   L  |   U  |   Y  | ;  : |  Bksp  |
  * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
- * | LShift |A/Shft|R/Ctrl|S/Alt |T/GUI |   G  |                              |   M  |N/GUI |E/Alt |I/Ctrl|O/Shft|RCtrl/'"|
- * |--------+------+------+------+------+------+-------------.  ,-------------+------+------+------+------+------+--------|
+ * | LShift |   A  |   R  |   S  |   T  |   G  |                              |   M  |   N  |   E  |   I  |   O  |RCtrl/'"|
+ * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
  * |  LCtrl |   Z  |   X  |   C  |Num/D |   V  | [ {  |  `~  |  | +  = |  ] } |   K  |   H  | ,  < | . >  | /  ? |  \  |  |
  * `----------------------+------+------+------+------+------|  |------+------+------+------+------+----------------------'
- *                        |Adjust| LGUI | F14  | Space| Nav  |  |F-Keys| Space| Enter| F15  | F16  |
+ *                        |Adjust| LGUI | LAlt | Space| Nav  |  |F-Keys| Space| Enter| F15  | F16  |
  *                        |      |      | .... |      |      |  |      |      |      |      |      |
  *                        `----------------------------------'  `----------------------------------'
  * ,-----------------------------------.                                              ,-----------------------------------.
@@ -71,9 +71,9 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     [_BASE] = LAYOUT_elora_hlc(
     ESC_ALT  , KC_1 ,  KC_2   ,  KC_3  ,   KC_4 ,   KC_5 ,                                        KC_6 ,  KC_7  ,  KC_8 ,   KC_9 ,  KC_0 , KC_MINUS,
     TAB_MEH , KC_Q ,  KC_W   ,  KC_F  ,   KC_P ,   KC_B ,                                        KC_J ,   KC_L ,  KC_U ,   KC_Y ,KC_SCLN, KC_BSPC,
-    KC_LSFT , HRM_A,  HRM_R  ,  HRM_S ,   HRM_T,   KC_G ,                                        KC_M ,  HRM_N ,  HRM_E,   HRM_I, HRM_O , CTL_QUOT,
+    KC_LSFT , KC_A,  KC_R  ,  KC_S ,   KC_T,   KC_G ,                                        KC_M ,  KC_N ,  KC_E,   KC_I, KC_O , CTL_QUOT,
     KC_LCTL , KC_Z ,  KC_X   ,  KC_C  ,  KC_D  ,   KC_V , KC_LBRC,KC_GRV ,   KC_EQL   , KC_RBRC, KC_K ,   KC_H ,KC_COMM, KC_DOT ,KC_SLSH, KC_NUBS,
-                                ADJUST, KC_LGUI, KC_F14 , KC_SPC , NAV   ,    FKEYS   , KC_SPC ,KC_ENT, KC_F15 , KC_F16,
+                                ADJUST, KC_LGUI, KC_LALT , KC_SPC , NAV   ,    FKEYS   , KC_SPC ,KC_ENT, KC_F15 , KC_F16,
     KC_MUTE, KC_NO,  KC_NO, KC_NO, KC_NO,                                                                KC_MUTE, KC_NO, KC_NO, KC_NO, KC_NO
  ),
 
@@ -99,9 +99,9 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     [_QWERTY] = LAYOUT_elora_hlc(
      ESC_ALT  , KC_1 ,  KC_2   ,  KC_3  ,   KC_4  ,   KC_5 ,                                        KC_6 ,  KC_7  ,  KC_8 ,   KC_9 ,   KC_0  , KC_MINUS,
      KC_TAB  , KC_Q ,  KC_W   ,  KC_E  ,   KC_R  ,   KC_T ,                                        KC_Y,   KC_U  ,  KC_I ,   KC_O ,   KC_P  , KC_BSPC,
-     CTL_ESC , HRM_QA ,HRM_QS ,  HRM_QD,   HRM_QF,   KC_G ,                                        KC_H,   HRM_QJ, HRM_QK, HRM_QL ,HRM_QSCLN,CTL_QUOT,
+     CTL_ESC , KC_A ,KC_S ,  KC_D,   KC_F,   KC_G ,                                        KC_H,   KC_J, KC_K, KC_L ,KC_SCLN,CTL_QUOT,
      KC_LSFT , KC_Z ,  KC_X   ,  KC_C  ,   KC_V  ,   KC_B , KC_LBRC, KC_GRV,  KC_EQL,KC_RBRC,   KC_N ,  KC_M , KC_COMM, KC_DOT  ,KC_SLSH, KC_NUBS,
-                                ADJUST, KC_LGUI, KC_F14  , KC_SPC ,  NAV   , FKEYS  , KC_SPC ,KC_ENT, KC_F15 ,  KC_F16,
+                                ADJUST, KC_LGUI, KC_LALT  , KC_SPC ,  NAV   , FKEYS  , KC_SPC ,KC_ENT, KC_F15 ,  KC_F16,
      KC_MUTE,  KC_NO,    KC_NO,   KC_NO,    KC_NO,                                                                KC_MUTE, KC_NO,    KC_NO, KC_NO   , KC_NO
     ),
 
@@ -113,11 +113,11 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
      * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
      * |  Tab   |   Q  |   W  |   F  |   P  |   B  |                              |   J  |   L  |   U  |   Y  | ;  : |  Bksp  |
      * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
-     * | LShift |A/Shft|R/Ctrl|S/Alt |T/GUI |   G  |                              |   M  |N/GUI |E/Alt |I/Ctrl|O/Shft|RCtrl/'"|
+     * | LShift |  A   |  R   |  S   |  T   |   G  |                              |   M  |  N   |  E   |  I   |  O   |  '  "  |
      * |--------+------+------+------+------+------+-------------.  ,-------------+------+------+------+------+------+--------|
      * |  LCtrl |   Z  |   X  |   C  |Num/D |   V  | [ {  |  `~  |  | +  = |  ] } |   K  |   H  | ,  < | . >  | /  ? |  \  |  |
      * `----------------------+------+------+------+------+------|  |------+------+------+------+------+----------------------'
-     *                        |Adjust| LGUI | F14  | Space| Nav  |  |F-Keys| Space| Enter| F15  | F16  |
+     *                        |Adjust| LGUI | LALT | Space| Nav  |  |F-Keys| Space| Enter| F15  | F16  |
      *                        |      |      | .... |      |      |  |      |      |      |      |      |
      *                        `----------------------------------'  `----------------------------------'
      * ,-----------------------------------.                                              ,-----------------------------------.
@@ -129,7 +129,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         KC_TAB  , KC_Q ,  KC_W   ,  KC_F  ,   KC_P ,   KC_B ,                                        KC_J ,   KC_L ,  KC_U ,   KC_Y ,KC_SCLN, KC_BSPC,
         KC_LSFT , KC_A ,  KC_R   ,  KC_S  ,   KC_T ,   KC_G ,                                        KC_M ,  KC_N  ,  KC_E ,   KC_I , KC_O  , CTL_QUOT,
         KC_LCTL , KC_Z ,  KC_X   ,  KC_C  ,  KC_D  ,   KC_V , KC_LBRC,KC_GRV ,   KC_EQL   , KC_RBRC, KC_K ,   KC_H ,KC_COMM, KC_DOT ,KC_SLSH, KC_NUBS,
-                                    ADJUST, KC_LGUI, KC_F14 , KC_SPC , NAV   ,    FKEYS   , KC_SPC ,KC_ENT, KC_F15 , KC_F16,
+                                    ADJUST, KC_LGUI, KC_LALT, KC_SPC , NAV   ,    FKEYS   , KC_SPC ,KC_ENT, KC_F15 , KC_F16,
         KC_MUTE, KC_NO,  KC_NO, KC_NO, KC_NO,                                                                KC_MUTE, KC_NO, KC_NO, KC_NO, KC_NO
      ),
 
@@ -139,13 +139,13 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  * ,-------------------------------------------.                              ,-------------------------------------------.
  * |        |      |      |      |      |      |                              |      |      |      |      |      |        |
  * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
- * |        |      |      |      |      |      |                              | End  | PgDn | PgUp | Home |      |        |
+ * |        |      |      |      |      |      |                              | End  | PgDn | PgUp | Home |      |  Del   |
  * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
  * |        |Shift | Ctrl | Alt  |  GUI |      |                              |  ←   |  ↓   |  ↑   |   →  |      |        |
  * |--------+------+------+------+------+------+-------------.  ,-------------+------+------+------+------+------+--------|
  * |        |      |      |      |      |      |      |ScLck |  |      |      |      |      |      |      |      |        |
  * `----------------------+------+------+------+------+------|  |------+------+------+------+------+----------------------'
- *                        |      |      |      |      |      |  |      |      | Del  |      |      |
+ *                        |      |      |      |      |      |  |      |      |      |      |      |
  *                        |      |      |      |      |      |  |      |      |      |      |      |
  *                        `----------------------------------'  `----------------------------------'
  * ,-----------------------------------.                                              ,-----------------------------------.
@@ -154,10 +154,10 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  */
     [_NAV] = LAYOUT_elora_hlc(
       _______, _______, _______, _______, _______, _______,                                     _______, _______, _______, _______, _______, _______,
-      _______, _______, _______, _______, _______, _______,                                     KC_END, KC_PGDN, KC_PGUP,   KC_HOME,  _______, _______,
+      _______, _______, _______, _______, _______, _______,                                     KC_END, KC_PGDN, KC_PGUP,   KC_HOME,  _______, KC_DEL,
       _______, KC_LSFT, KC_LCTL, KC_LALT, KC_LGUI, _______,                                     KC_LEFT, KC_DOWN, KC_UP, KC_RGHT, _______, _______,
       _______, _______, _______, _______, _______, _______, _______, KC_SCRL, _______, _______,_______, _______, _______, _______, _______, _______,
-                                 _______, _______, _______, _______, _______, _______, _______, _______, KC_DEL, _______,
+                                 _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
      _______, _______,  _______, _______, _______,                                                       _______, _______, _______, _______, _______
     ),
 
@@ -195,9 +195,9 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  * ,-------------------------------------------.                              ,-------------------------------------------.
  * |        | BASE |GAMING|QWERTY|      |      |                              |      |      |      |      |      |        |
  * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
- * |        |..... |RGB_TO|......|      |      |                              |      |      |      |      |      |        |
+ * |        |..... |RGB_TO|......|      |      |                              |      | VolUp| Mute |VolDn | F13  |        |
  * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
- * |        | TOG  |  BrightUP   |......|  SatUp    |      |                              |      |      |      |      |      |        |
+ * |        | TOG  |  BrightUP   |......|  SatUp    |      |                  |      | Prev | Play | Next |      |        |
  * |--------+------+------+------+------+------+-------------.  ,-------------+------+------+------+------+------+--------|
  * |        |      |  BrightDown |......|  SatDown    |      |      |      |  |      |      |      |      |      |      |      |        |
  * `----------------------+------+------+------+------+------|  |------+------+------+------+------+----------------------'
@@ -209,9 +209,9 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  * `-----------------------------------'                                              `-----------------------------------'
  */
     [_ADJUST] = LAYOUT_elora_hlc(
-      _______,  BASE  , GAMING , QWERTY , _______, _______,                                    _______, _______, _______, KC_BRIU, _______, _______,
-      _______, _______, RGB_MODE_TOGGLE, _______, _______, _______,                                    KC_BRIU, KC_VOLU, KC_MUTE, KC_VOLD, KC_F13 , _______,
-      _______, RM_TOGG, RM_VALU, _______, RM_SATU, _______,                                    KC_BRID, KC_MRWD, KC_MPLY, KC_MFFD, _______, _______,
+      _______,  BASE  , GAMING , QWERTY , _______, _______,                                    _______, _______, _______, _______, _______, _______,
+      _______, _______, RGB_MODE_TOGGLE, _______, _______, _______,                                    _______, KC_VOLU, KC_MUTE, KC_VOLD, KC_F13 , _______,
+      _______, RM_TOGG, RM_VALU, _______, RM_SATU, _______,                                    _______, KC_MRWD, KC_MPLY, KC_MFFD, _______, _______,
       _______, RM_NEXT, RM_VALD, _______, RM_SATD, _______,_______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
                                  _______, _______, _______,_______, _______, _______, _______, _______, _______, _______,
      _______, _______,  _______, _______, _______,                                                      _______, _______, _______, _______, _______
