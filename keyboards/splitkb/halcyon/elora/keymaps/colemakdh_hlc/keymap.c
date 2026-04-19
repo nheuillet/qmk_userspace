@@ -1,48 +1,10 @@
 // Copyright 2024 splitkb.com (support@splitkb.com)
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "keycodes.h"
 #include QMK_KEYBOARD_H
-
-enum layers {
-    _BASE = 0,
-    _QWERTY,
-    _GAMING,
-    _NAV,
-    _FKEYS,
-    _ADJUST,
-};
-
-// enum layers {
-//     _QWERTY = 0,
-//     _DVORAK,
-//     _COLEMAK_DH,
-//     _NAV,
-//     _SYM,
-//     _FUNCTION,
-//     _ADJUST,
-// };
-
-#define BASE        DF(_BASE)
-#define QWERTY      DF(_QWERTY)
-#define GAMING      DF(_GAMING)
-#define NAV         MO(_NAV)
-#define FKEYS       MO(_FKEYS)
-#define ADJUST      MO(_ADJUST)
-
-// // Aliases for readability
-// #define QWERTY   DF(_QWERTY)
-// #define COLEMAK  DF(_COLEMAK_DH)
-// #define DVORAK   DF(_DVORAK)
-
-// #define SYM      MO(_SYM)
-// #define NAV      MO(_NAV)
-// #define FKEYS    MO(_FUNCTION)
-// #define ADJUST   MO(_ADJUST)
-
-#include "custom_keycodes.c"
-#include "custom_functions.c"
+#include "custom_keycodes.h"
 #include "combos.c"
+
 
 // Note: LAlt/Enter (ALT_ENT) is not the same thing as the keyboard shortcut Alt+Enter.
 // The notation `mod/tap` denotes a key that activates the modifier `mod` when held down, and

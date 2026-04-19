@@ -1,3 +1,6 @@
+#include QMK_KEYBOARD_H
+#include "custom_keycodes.h"
+
 // French Accent Combos - F15 gated
 // All combos only trigger when F15 is held (see combo_should_trigger in custom_functions.c)
 //
@@ -27,7 +30,6 @@ enum combo_events {
     XC_C_CED,          // X + C → ç
     COMBO_LENGTH
 };
-uint16_t COMBO_LEN = COMBO_LENGTH;
 
 const uint16_t PROGMEM ei_e_grave_combo[]  = {KC_E, KC_I, COMBO_END};
 const uint16_t PROGMEM en_e_acute_combo[]  = {KC_E, KC_N, COMBO_END};

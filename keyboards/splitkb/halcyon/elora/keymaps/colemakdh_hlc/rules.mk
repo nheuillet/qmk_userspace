@@ -3,6 +3,7 @@ LTO_ENABLE = yes
 VPATH += keyboards/gboards/
 
 COMBO_ENABLE = yes
+SRC += custom_functions.c
 
 # Enable NKRO feature, which allows the keyboard to report any number of keys pressed simultaneously
 NKRO_ENABLE = yes
