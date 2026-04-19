@@ -42,6 +42,7 @@ enum layers {
 
 #include "custom_keycodes.c"
 #include "custom_functions.c"
+#include "combos.c"
 
 // Note: LAlt/Enter (ALT_ENT) is not the same thing as the keyboard shortcut Alt+Enter.
 // The notation `mod/tap` denotes a key that activates the modifier `mod` when held down, and

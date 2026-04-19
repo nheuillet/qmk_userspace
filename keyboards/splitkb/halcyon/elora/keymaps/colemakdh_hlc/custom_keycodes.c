@@ -57,4 +57,9 @@ I_CIRC,
 O_CIRC,
 U_CIRC,
 C_CED,
+
+// Trema letters
+E_TRM,
+I_TRM,
+U_TRM,
 };

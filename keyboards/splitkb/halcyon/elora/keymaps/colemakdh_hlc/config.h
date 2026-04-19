@@ -2,7 +2,6 @@
 
 #define SPLIT_LAYER_STATE_ENABLE
 
-
 // Swap hands feature - allows mirroring the keyboard for one-handed typing
 // #define SWAP_HANDS_ENABLE
 
@@ -16,10 +15,7 @@
 // One shot mods timeout
 #define ONESHOT_TIMEOUT 1000
 
-// Combos - from Vermoot's keymap
-#define COMBO_VARIABLE_LEN
-#define COMBO_TERM 20
-#define COMBO_TERM_PER_COMBO
+#define COMBO_TERM 40
 #define COMBO_SHOULD_TRIGGER
 
 // Caps Word settings

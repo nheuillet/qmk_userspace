@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+
 // uint16_t get_tapping_term(uint16_t keycode, keyrecord_t *record) {
 //     static uint16_t non_mod_input_timer;
 //     non_mod_input_timer = timer_read();
@@ -60,6 +61,7 @@ static rgb_layer_color_t layer_led_colors[MAX_RGB_LAYERS][MAX_LEDS];
 static bool layer_has_colors[MAX_RGB_LAYERS] = {false};
 
 #define RGB_BASE_COLOR 0xFFFF
+#define _COMBO_LAYER   9
 
 // Helper function to easily register colors per keycode inside post_init
 void register_color_for_keycode(uint8_t layer, uint16_t target_keycode, uint8_t red, uint8_t green, uint8_t blue) {
@@ -76,6 +78,26 @@ void register_color_for_keycode(uint8_t layer, uint16_t target_keycode, uint8_t 
                     layer_led_colors[layer][led_index].green = green;
                     layer_led_colors[layer][led_index].blue = blue;
                     layer_led_colors[layer][led_index].is_set = true;
+                }
+            }
+        }
+    }
+}
+
+// Like register_color_for_keycode but looks up the key position from the BASE layer
+// and stores the color in the virtual combo layer (not an actual QMK layer).
+void register_combo_color(uint16_t target_keycode, uint8_t red, uint8_t green, uint8_t blue) {
+    layer_has_colors[_COMBO_LAYER] = true;
+    for (uint8_t row = 0; row < MATRIX_ROWS; ++row) {
+        for (uint8_t col = 0; col < MATRIX_COLS; ++col) {
+            uint8_t led_index = g_led_config.matrix_co[row][col];
+            if (led_index != NO_LED && led_index < MAX_LEDS) {
+                uint16_t key = keymap_key_to_keycode(_BASE, (keypos_t){col, row});
+                if (key == target_keycode) {
+                    layer_led_colors[_COMBO_LAYER][led_index].red   = red;
+                    layer_led_colors[_COMBO_LAYER][led_index].green = green;
+                    layer_led_colors[_COMBO_LAYER][led_index].blue  = blue;
+                    layer_led_colors[_COMBO_LAYER][led_index].is_set = true;
                 }
             }
         }
@@ -174,6 +196,40 @@ void keyboard_post_init_user(void) {
     register_color_for_keycode(_NAV, RGB_BASE_COLOR, 0, 50, 255);      // Blue base for NAV
     register_color_for_keycode(_FKEYS, RGB_BASE_COLOR, 255, 0, 0);     // Red base for FKEYS
     register_color_for_keycode(_ADJUST, RGB_BASE_COLOR, 0, 255, 0);    // Green base for ADJUST
+
+    // --- COMBO LAYER COLORS (shown as overlay when F15 is held) ---
+    // Color logic:
+    //   Cyan    = H, the circumflex (^) trigger
+    //   Magenta = M, the trema (¨) trigger
+    //   White   = accent-receiving vowels (press with H or M, or pair with a partner below)
+    //   Gold    = N, the acute partner  → E+N = é
+    //   Orange  = grave partners + ô pair → E+I=è, A+S=à, U+Y=ù, I+O=ô (I and O share color as a pair)
+    //   Green   = X+C cedilla pair → ç
+
+    // Circumflex trigger
+    register_combo_color(KC_H, 0, 220, 255);     // Cyan
+
+    // Trema trigger
+    register_combo_color(KC_M, 220, 0, 220);     // Magenta
+
+    // Accent-receiving vowels (combine with H, M, or a partner key)
+    register_combo_color(KC_E, 180, 180, 180);   // White
+    register_combo_color(KC_A, 180, 180, 180);   // White
+    register_combo_color(KC_U, 180, 180, 180);   // White
+
+    // Acute partner: E+N → é
+    register_combo_color(KC_N, 255, 200, 0);     // Gold
+
+    // Grave partners: E+I → è | A+S → à | U+Y → ù
+    // ô pair: I+O → ô (I and O share orange since they're a natural pair)
+    register_combo_color(KC_I, 255, 110, 0);     // Orange
+    register_combo_color(KC_S, 255, 110, 0);     // Orange
+    register_combo_color(KC_Y, 255, 110, 0);     // Orange
+    register_combo_color(KC_O, 255, 110, 0);     // Orange
+
+    // Cedilla pair: X+C → ç
+    register_combo_color(KC_X, 0, 210, 60);      // Green
+    register_combo_color(KC_C, 0, 210, 60);      // Green
 }
 
 
@@ -191,6 +247,7 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
             }
         }
     }
+
     return false;
 }
 
@@ -231,6 +288,14 @@ bool accented_letter(uint16_t accent, uint16_t letter, bool pressed) {
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     const bool pressed = record->event.pressed;
 
+    // Activate the combo virtual layer when F15 is held so both halves see the state
+    // (layer state is synced automatically via SPLIT_LAYER_STATE_ENABLE)
+    if (keycode == KC_F15) {
+        if (pressed) { layer_on(_COMBO_LAYER); }
+        else          { layer_off(_COMBO_LAYER); }
+        return true;
+    }
+
     switch (keycode) {
         case RGB_MODE_TOGGLE:
             if (record->event.pressed) {
@@ -257,10 +322,19 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         case U_CIRC: return accented_letter(S(KC_6), KC_U, pressed);
         case C_CED: return accented_letter(KC_QUOT, KC_C, pressed);
 
+        // Trema letters
+        case E_TRM: return accented_letter(S(KC_QUOT), KC_E, pressed);
+        case I_TRM: return accented_letter(S(KC_QUOT), KC_I, pressed);
+        case U_TRM: return accented_letter(S(KC_QUOT), KC_U, pressed);
 
         default:
           return true;
     }
 
     return true;
+}
+
+// Only allow accent combos when F15 is held (_COMBO_LAYER active = F15 held)
+bool combo_should_trigger(uint16_t combo_index, combo_t *combo, uint16_t keycode, keyrecord_t *record) {
+    return layer_state_is(_COMBO_LAYER);
 }
