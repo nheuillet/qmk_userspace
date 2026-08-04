@@ -52,13 +52,13 @@ void register_color_for_keycode(uint8_t layer, uint16_t target_keycode, uint8_t 
             uint8_t led_index = g_led_config.matrix_co[row][col];
             if (led_index == NO_LED || led_index >= RGB_MATRIX_LED_COUNT) continue;
 
-            uint16_t key = keymap_key_to_keycode(layer, (keypos_t){col, row});
-            bool is_wildcard = (target_keycode == RGB_WILDCARD && key > KC_TRNS && !layer_led_colors[layer][led_index].is_set);
+            uint16_t key         = keymap_key_to_keycode(layer, (keypos_t){col, row});
+            bool     is_wildcard = (target_keycode == RGB_WILDCARD && key > KC_TRNS && !layer_led_colors[layer][led_index].is_set);
             if (key != target_keycode && !is_wildcard) continue;
 
-            layer_led_colors[layer][led_index].red   = red;
-            layer_led_colors[layer][led_index].green = green;
-            layer_led_colors[layer][led_index].blue  = blue;
+            layer_led_colors[layer][led_index].red    = red;
+            layer_led_colors[layer][led_index].green  = green;
+            layer_led_colors[layer][led_index].blue   = blue;
             layer_led_colors[layer][led_index].is_set = true;
         }
     }
@@ -76,9 +76,9 @@ void register_combo_color(uint16_t target_keycode, uint8_t red, uint8_t green, u
             uint16_t key = keymap_key_to_keycode(_BASE, (keypos_t){col, row});
             if (key != target_keycode) continue;
 
-            layer_led_colors[COMBO_INDICATOR_LAYER][led_index].red   = red;
-            layer_led_colors[COMBO_INDICATOR_LAYER][led_index].green = green;
-            layer_led_colors[COMBO_INDICATOR_LAYER][led_index].blue  = blue;
+            layer_led_colors[COMBO_INDICATOR_LAYER][led_index].red    = red;
+            layer_led_colors[COMBO_INDICATOR_LAYER][led_index].green  = green;
+            layer_led_colors[COMBO_INDICATOR_LAYER][led_index].blue   = blue;
             layer_led_colors[COMBO_INDICATOR_LAYER][led_index].is_set = true;
         }
     }
@@ -95,40 +95,40 @@ void keyboard_post_init_user(void) {
     // 1. Specific key overrides first (wildcards fill the rest after)
 
     // NAV layer - Page navigation
-    register_color_for_keycode(_NAV, KC_HOME, 0, 255, 0);    // Green
-    register_color_for_keycode(_NAV, KC_END,  0, 255, 0);    // Green
-    register_color_for_keycode(_NAV, KC_PGUP, 255, 0, 0);    // Red
-    register_color_for_keycode(_NAV, KC_PGDN, 255, 0, 0);    // Red
+    register_color_for_keycode(_NAV, KC_HOME, 0, 255, 0); // Green
+    register_color_for_keycode(_NAV, KC_END, 0, 255, 0);  // Green
+    register_color_for_keycode(_NAV, KC_PGUP, 255, 0, 0); // Red
+    register_color_for_keycode(_NAV, KC_PGDN, 255, 0, 0); // Red
 
     // NAV layer - Arrow keys
-    register_color_for_keycode(_NAV, KC_LEFT, 0, 255, 255);  // Cyan
-    register_color_for_keycode(_NAV, KC_DOWN, 0, 255, 255);  // Cyan
-    register_color_for_keycode(_NAV, KC_UP,   0, 255, 255);  // Cyan
-    register_color_for_keycode(_NAV, KC_RGHT, 0, 255, 255);  // Cyan
+    register_color_for_keycode(_NAV, KC_LEFT, 0, 255, 255); // Cyan
+    register_color_for_keycode(_NAV, KC_DOWN, 0, 255, 255); // Cyan
+    register_color_for_keycode(_NAV, KC_UP, 0, 255, 255);   // Cyan
+    register_color_for_keycode(_NAV, KC_RGHT, 0, 255, 255); // Cyan
 
     // NAV layer - Modifiers
-    register_color_for_keycode(_NAV, KC_LSFT, 255, 255, 0);  // Yellow
-    register_color_for_keycode(_NAV, KC_LCTL, 255, 255, 0);  // Yellow
-    register_color_for_keycode(_NAV, KC_LALT, 255, 255, 0);  // Yellow
-    register_color_for_keycode(_NAV, KC_LGUI, 255, 255, 0);  // Yellow
+    register_color_for_keycode(_NAV, KC_LSFT, 255, 255, 0); // Yellow
+    register_color_for_keycode(_NAV, KC_LCTL, 255, 255, 0); // Yellow
+    register_color_for_keycode(_NAV, KC_LALT, 255, 255, 0); // Yellow
+    register_color_for_keycode(_NAV, KC_LGUI, 255, 255, 0); // Yellow
 
     // NAV layer - Special actions
-    register_color_for_keycode(_NAV, KC_SCRL, 255, 120, 0);  // Orange
-    register_color_for_keycode(_NAV, KC_DEL,  255, 120, 0);  // Orange
+    register_color_for_keycode(_NAV, KC_SCRL, 255, 120, 0); // Orange
+    register_color_for_keycode(_NAV, KC_DEL, 255, 120, 0);  // Orange
 
     // FKEYS layer - Function keys (color by row)
-    register_color_for_keycode(_FKEYS, KC_F1,  0, 200, 200);  // Teal
-    register_color_for_keycode(_FKEYS, KC_F2,  0, 200, 200);  // Teal
-    register_color_for_keycode(_FKEYS, KC_F3,  0, 200, 200);  // Teal
-    register_color_for_keycode(_FKEYS, KC_F4,  0, 200, 200);  // Teal
-    register_color_for_keycode(_FKEYS, KC_F5,  0, 100, 255);  // Blue
-    register_color_for_keycode(_FKEYS, KC_F6,  0, 100, 255);  // Blue
-    register_color_for_keycode(_FKEYS, KC_F7,  0, 100, 255);  // Blue
-    register_color_for_keycode(_FKEYS, KC_F8,  0, 100, 255);  // Blue
-    register_color_for_keycode(_FKEYS, KC_F9,  128, 0, 255);  // Purple
-    register_color_for_keycode(_FKEYS, KC_F10, 128, 0, 255);  // Purple
-    register_color_for_keycode(_FKEYS, KC_F11, 128, 0, 255);  // Purple
-    register_color_for_keycode(_FKEYS, KC_F12, 128, 0, 255);  // Purple
+    register_color_for_keycode(_FKEYS, KC_F1, 0, 200, 200);  // Teal
+    register_color_for_keycode(_FKEYS, KC_F2, 0, 200, 200);  // Teal
+    register_color_for_keycode(_FKEYS, KC_F3, 0, 200, 200);  // Teal
+    register_color_for_keycode(_FKEYS, KC_F4, 0, 200, 200);  // Teal
+    register_color_for_keycode(_FKEYS, KC_F5, 0, 100, 255);  // Blue
+    register_color_for_keycode(_FKEYS, KC_F6, 0, 100, 255);  // Blue
+    register_color_for_keycode(_FKEYS, KC_F7, 0, 100, 255);  // Blue
+    register_color_for_keycode(_FKEYS, KC_F8, 0, 100, 255);  // Blue
+    register_color_for_keycode(_FKEYS, KC_F9, 128, 0, 255);  // Purple
+    register_color_for_keycode(_FKEYS, KC_F10, 128, 0, 255); // Purple
+    register_color_for_keycode(_FKEYS, KC_F11, 128, 0, 255); // Purple
+    register_color_for_keycode(_FKEYS, KC_F12, 128, 0, 255); // Purple
 
     // FKEYS layer - Modifiers
     register_color_for_keycode(_FKEYS, KC_RSFT, 255, 255, 0); // Yellow
@@ -137,52 +137,52 @@ void keyboard_post_init_user(void) {
     register_color_for_keycode(_FKEYS, KC_RGUI, 255, 255, 0); // Yellow
 
     // ADJUST layer - Layer switches
-    register_color_for_keycode(_ADJUST, BASE,   0, 255, 0);    // Green
-    register_color_for_keycode(_ADJUST, GAMING, 255, 0, 0);    // Red
-    register_color_for_keycode(_ADJUST, QWERTY, 0, 100, 255);  // Blue
+    register_color_for_keycode(_ADJUST, BASE, 0, 255, 0);     // Green
+    register_color_for_keycode(_ADJUST, GAMING, 255, 0, 0);   // Red
+    register_color_for_keycode(_ADJUST, QWERTY, 0, 100, 255); // Blue
 
     // ADJUST layer - RGB controls
-    register_color_for_keycode(_ADJUST, RGB_MODE_TOGGLE, 255, 0, 255);  // Magenta
-    register_color_for_keycode(_ADJUST, RM_TOGG, 255, 0, 0);            // Red
-    register_color_for_keycode(_ADJUST, RM_VALU, 255, 255, 0);          // Yellow
-    register_color_for_keycode(_ADJUST, RM_VALD, 255, 255, 0);          // Yellow
-    register_color_for_keycode(_ADJUST, RM_SATU, 255, 120, 0);          // Orange
-    register_color_for_keycode(_ADJUST, RM_SATD, 255, 120, 0);          // Orange
-    register_color_for_keycode(_ADJUST, RM_NEXT, 0, 255, 255);          // Cyan
+    register_color_for_keycode(_ADJUST, RGB_MODE_TOGGLE, 255, 0, 255); // Magenta
+    register_color_for_keycode(_ADJUST, RM_TOGG, 255, 0, 0);           // Red
+    register_color_for_keycode(_ADJUST, RM_VALU, 255, 255, 0);         // Yellow
+    register_color_for_keycode(_ADJUST, RM_VALD, 255, 255, 0);         // Yellow
+    register_color_for_keycode(_ADJUST, RM_SATU, 255, 120, 0);         // Orange
+    register_color_for_keycode(_ADJUST, RM_SATD, 255, 120, 0);         // Orange
+    register_color_for_keycode(_ADJUST, RM_NEXT, 0, 255, 255);         // Cyan
 
     // ADJUST layer - Media controls
-    register_color_for_keycode(_ADJUST, KC_VOLU, 255, 255, 0);  // Yellow
-    register_color_for_keycode(_ADJUST, KC_VOLD, 255, 255, 0);  // Yellow
-    register_color_for_keycode(_ADJUST, KC_MUTE, 255, 0, 0);    // Red
-    register_color_for_keycode(_ADJUST, KC_MRWD, 0, 100, 255);  // Blue
-    register_color_for_keycode(_ADJUST, KC_MFFD, 0, 100, 255);  // Blue
-    register_color_for_keycode(_ADJUST, KC_MPLY, 0, 255, 0);    // Green
+    register_color_for_keycode(_ADJUST, KC_VOLU, 255, 255, 0); // Yellow
+    register_color_for_keycode(_ADJUST, KC_VOLD, 255, 255, 0); // Yellow
+    register_color_for_keycode(_ADJUST, KC_MUTE, 255, 0, 0);   // Red
+    register_color_for_keycode(_ADJUST, KC_MRWD, 0, 100, 255); // Blue
+    register_color_for_keycode(_ADJUST, KC_MFFD, 0, 100, 255); // Blue
+    register_color_for_keycode(_ADJUST, KC_MPLY, 0, 255, 0);   // Green
 
     // ADJUST layer - Brightness
-    register_color_for_keycode(_ADJUST, KC_BRIU, 255, 255, 0);  // Yellow
-    register_color_for_keycode(_ADJUST, KC_BRID, 255, 255, 0);  // Yellow
-    register_color_for_keycode(_ADJUST, KC_F13,  128, 0, 255);  // Purple
+    register_color_for_keycode(_ADJUST, KC_BRIU, 255, 255, 0); // Yellow
+    register_color_for_keycode(_ADJUST, KC_BRID, 255, 255, 0); // Yellow
+    register_color_for_keycode(_ADJUST, KC_F13, 128, 0, 255);  // Purple
 
     // 2. Wildcard fills any remaining active key on each layer
-    register_color_for_keycode(_NAV,    RGB_WILDCARD, 0, 50, 255);   // Blue base
-    register_color_for_keycode(_FKEYS,  RGB_WILDCARD, 255, 0, 0);    // Red base
-    register_color_for_keycode(_ADJUST, RGB_WILDCARD, 0, 255, 0);    // Green base
+    register_color_for_keycode(_NAV, RGB_WILDCARD, 0, 50, 255);   // Blue base
+    register_color_for_keycode(_FKEYS, RGB_WILDCARD, 255, 0, 0);  // Red base
+    register_color_for_keycode(_ADJUST, RGB_WILDCARD, 0, 255, 0); // Green base
 
     // --- COMBO INDICATOR COLORS (visible when F15 is held) ---
     // H = circumflex (^) trigger | M = trema (¨) trigger
     // White vowels = accent receivers | Gold N = acute | Orange = grave/ô | Green = cedilla
-    register_combo_color(KC_H, 0, 220, 255);    // Cyan   — circumflex trigger
-    register_combo_color(KC_M, 220, 0, 220);    // Magenta — trema trigger
-    register_combo_color(KC_E, 180, 180, 180);  // White  — accent vowel
-    register_combo_color(KC_A, 180, 180, 180);  // White  — accent vowel
-    register_combo_color(KC_U, 180, 180, 180);  // White  — accent vowel
-    register_combo_color(KC_N, 255, 200, 0);    // Gold   — acute partner (E+N → é)
-    register_combo_color(KC_I, 255, 110, 0);    // Orange — grave partner (E+I → è) + ô pair
-    register_combo_color(KC_S, 255, 110, 0);    // Orange — grave partner (A+S → à)
-    register_combo_color(KC_Y, 255, 110, 0);    // Orange — grave partner (U+Y → ù)
-    register_combo_color(KC_O, 255, 110, 0);    // Orange — ô pair (I+O → ô)
-    register_combo_color(KC_X, 0, 210, 60);     // Green  — cedilla pair (X+C → ç)
-    register_combo_color(KC_C, 0, 210, 60);     // Green  — cedilla pair
+    register_combo_color(KC_H, 0, 220, 255);   // Cyan   — circumflex trigger
+    register_combo_color(KC_M, 220, 0, 220);   // Magenta — trema trigger
+    register_combo_color(KC_E, 180, 180, 180); // White  — accent vowel
+    register_combo_color(KC_A, 180, 180, 180); // White  — accent vowel
+    register_combo_color(KC_U, 180, 180, 180); // White  — accent vowel
+    register_combo_color(KC_N, 255, 200, 0);   // Gold   — acute partner (E+N → é)
+    register_combo_color(KC_I, 255, 110, 0);   // Orange — grave partner (E+I → è) + ô pair
+    register_combo_color(KC_S, 255, 110, 0);   // Orange — grave partner (A+S → à)
+    register_combo_color(KC_Y, 255, 110, 0);   // Orange — grave partner (U+Y → ù)
+    register_combo_color(KC_O, 255, 110, 0);   // Orange — ô pair (I+O → ô)
+    register_combo_color(KC_X, 0, 210, 60);    // Green  — cedilla pair (X+C → ç)
+    register_combo_color(KC_C, 0, 210, 60);    // Green  — cedilla pair
 }
 
 bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
@@ -191,11 +191,7 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
     if (layer < MAX_RGB_LAYERS && layer_has_colors[layer]) {
         for (uint8_t i = led_min; i < led_max; ++i) {
             if (layer_led_colors[layer][i].is_set) {
-                rgb_matrix_set_color(i,
-                    layer_led_colors[layer][i].red,
-                    layer_led_colors[layer][i].green,
-                    layer_led_colors[layer][i].blue
-                );
+                rgb_matrix_set_color(i, layer_led_colors[layer][i].red, layer_led_colors[layer][i].green, layer_led_colors[layer][i].blue);
             }
         }
     }
@@ -228,8 +224,8 @@ void unmod(uint16_t keycode) {
 
 bool accented_letter(uint16_t accent, uint16_t letter, bool pressed) {
     if (pressed) {
-        unmod(accent);           // tap the dead key, stripping shift so it stays dead
-        register_code(letter);   // immediately follow with the letter
+        unmod(accent);         // tap the dead key, stripping shift so it stays dead
+        register_code(letter); // immediately follow with the letter
     } else {
         unregister_code(letter); // release on key-up (enables held-key repeat)
     }
@@ -244,8 +240,11 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     // F15 activates the combo indicator layer so both halves reflect the state
     // (synced automatically via SPLIT_LAYER_STATE_ENABLE in config.h)
     if (keycode == KC_F15) {
-        if (pressed) { layer_on(COMBO_INDICATOR_LAYER); }
-        else         { layer_off(COMBO_INDICATOR_LAYER); }
+        if (pressed) {
+            layer_on(COMBO_INDICATOR_LAYER);
+        } else {
+            layer_off(COMBO_INDICATOR_LAYER);
+        }
         return true;
     }
 
@@ -258,29 +257,64 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             return false;
 
         // Undead characters
-        case UD_APO:  return undead(KC_QUOT,   pressed);
-        case UD_GRV:  return undead(KC_GRV,    pressed);
-        case UD_TLD:  return undead(S(KC_GRV), pressed);
-        case UD_CIRC: return undead(S(KC_6),   pressed);
+        case UD_APO:
+            return undead(KC_QUOT, pressed);
+        case UD_GRV:
+            return undead(KC_GRV, pressed);
+        case UD_TLD:
+            return undead(S(KC_GRV), pressed);
+        case UD_CIRC:
+            return undead(S(KC_6), pressed);
+
+        // Quote key mod-tap: tap = literal ' or " (undead: dead key + space, so it
+        // types immediately on layouts with dead keys); hold = Right Ctrl, which is
+        // left to QMK's default mod-tap handling below.
+        case CTL_QUOT:
+            if (record->tap.count > 0) {
+                return undead(KC_QUOT, pressed);
+            }
+            return true; // held: default mod-tap processing registers/unregisters RCtrl
+
+        // Number row: Shift+6 types a literal ^ (undead on layouts with dead keys);
+        // unshifted, 6 types normally.
+        case KC_6:
+            if (pressed && ((get_mods() | get_oneshot_mods() | get_weak_mods()) & MOD_MASK_SHIFT)) {
+                return undead(S(KC_6), true);
+            }
+            return true; // plain 6 / release: default handling
 
         // Accented letters
-        case E_ACUTE: return accented_letter(KC_QUOT,    KC_E, pressed);
-        case E_GRV:   return accented_letter(KC_GRV,     KC_E, pressed);
-        case E_CIRC:  return accented_letter(S(KC_6),    KC_E, pressed);
-        case A_GRV:   return accented_letter(KC_GRV,     KC_A, pressed);
-        case U_GRV:   return accented_letter(KC_GRV,     KC_U, pressed);
-        case A_CIRC:  return accented_letter(S(KC_6),    KC_A, pressed);
-        case I_CIRC:  return accented_letter(S(KC_6),    KC_I, pressed);
-        case O_CIRC:  return accented_letter(S(KC_6),    KC_O, pressed);
-        case U_CIRC:  return accented_letter(S(KC_6),    KC_U, pressed);
-        case C_CED:   return accented_letter(KC_QUOT,    KC_C, pressed);
+        case E_ACUTE:
+            return accented_letter(KC_QUOT, KC_E, pressed);
+        case E_GRV:
+            return accented_letter(KC_GRV, KC_E, pressed);
+        case E_CIRC:
+            return accented_letter(S(KC_6), KC_E, pressed);
+        case A_GRV:
+            return accented_letter(KC_GRV, KC_A, pressed);
+        case U_GRV:
+            return accented_letter(KC_GRV, KC_U, pressed);
+        case A_CIRC:
+            return accented_letter(S(KC_6), KC_A, pressed);
+        case I_CIRC:
+            return accented_letter(S(KC_6), KC_I, pressed);
+        case O_CIRC:
+            return accented_letter(S(KC_6), KC_O, pressed);
+        case U_CIRC:
+            return accented_letter(S(KC_6), KC_U, pressed);
+        case C_CED:
+            return accented_letter(KC_QUOT, KC_C, pressed);
 
         // Trema letters
-        case E_TRM:   return accented_letter(S(KC_QUOT), KC_E, pressed);
-        case I_TRM:   return accented_letter(S(KC_QUOT), KC_I, pressed);
-        case U_TRM:   return accented_letter(S(KC_QUOT), KC_U, pressed);
+        case E_TRM:
+            return accented_letter(S(KC_QUOT), KC_E, pressed);
+        case I_TRM:
+            return accented_letter(S(KC_QUOT), KC_I, pressed);
+        case U_TRM:
+            return accented_letter(S(KC_QUOT), KC_U, pressed);
 
-        default: return true;
+        default:
+            return true;
     }
 }
 
