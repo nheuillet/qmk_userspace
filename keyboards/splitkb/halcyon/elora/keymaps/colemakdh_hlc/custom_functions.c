@@ -113,7 +113,7 @@ void keyboard_post_init_user(void) {
     register_color_for_keycode(_NAV, KC_LGUI, 255, 255, 0); // Yellow
 
     // NAV layer - Special actions
-    register_color_for_keycode(_NAV, KC_SCRL, 255, 120, 0); // Orange
+    register_color_for_keycode(_NAV, G(KC_L), 255, 120, 0); // Orange — screen lock (Super+L)
     register_color_for_keycode(_NAV, KC_DEL, 255, 120, 0);  // Orange
 
     // FKEYS layer - Function keys (color by row)
@@ -129,6 +129,10 @@ void keyboard_post_init_user(void) {
     register_color_for_keycode(_FKEYS, KC_F10, 128, 0, 255); // Purple
     register_color_for_keycode(_FKEYS, KC_F11, 128, 0, 255); // Purple
     register_color_for_keycode(_FKEYS, KC_F12, 128, 0, 255); // Purple
+    register_color_for_keycode(_FKEYS, KC_F13, 128, 0, 255); // Purple
+    register_color_for_keycode(_FKEYS, KC_F14, 128, 0, 255); // Purple
+    register_color_for_keycode(_FKEYS, KC_F15, 128, 0, 255); // Purple
+    register_color_for_keycode(_FKEYS, KC_F16, 128, 0, 255); // Purple
 
     // FKEYS layer - Modifiers
     register_color_for_keycode(_FKEYS, KC_RSFT, 255, 255, 0); // Yellow
@@ -169,20 +173,19 @@ void keyboard_post_init_user(void) {
     register_color_for_keycode(_ADJUST, RGB_WILDCARD, 0, 255, 0); // Green base
 
     // --- COMBO INDICATOR COLORS (visible when F15 is held) ---
-    // H = circumflex (^) trigger | M = trema (¨) trigger
-    // White vowels = accent receivers | Gold N = acute | Orange = grave/ô | Green = cedilla
-    register_combo_color(KC_H, 0, 220, 255);   // Cyan   — circumflex trigger
+    // L = grave (`) trigger | N = acute (´) partner | H = circumflex (^) trigger
+    // M = trema (¨) trigger | COMM = cedilla (¸) trigger | White vowels = accent targets
+    register_combo_color(KC_L, 255, 110, 0);   // Orange  — grave trigger
+    register_combo_color(KC_N, 255, 200, 0);   // Gold    — acute partner (N+E → é)
+    register_combo_color(KC_H, 0, 220, 255);   // Cyan    — circumflex trigger
     register_combo_color(KC_M, 220, 0, 220);   // Magenta — trema trigger
-    register_combo_color(KC_E, 180, 180, 180); // White  — accent vowel
-    register_combo_color(KC_A, 180, 180, 180); // White  — accent vowel
-    register_combo_color(KC_U, 180, 180, 180); // White  — accent vowel
-    register_combo_color(KC_N, 255, 200, 0);   // Gold   — acute partner (E+N → é)
-    register_combo_color(KC_I, 255, 110, 0);   // Orange — grave partner (E+I → è) + ô pair
-    register_combo_color(KC_S, 255, 110, 0);   // Orange — grave partner (A+S → à)
-    register_combo_color(KC_Y, 255, 110, 0);   // Orange — grave partner (U+Y → ù)
-    register_combo_color(KC_O, 255, 110, 0);   // Orange — ô pair (I+O → ô)
-    register_combo_color(KC_X, 0, 210, 60);    // Green  — cedilla pair (X+C → ç)
-    register_combo_color(KC_C, 0, 210, 60);    // Green  — cedilla pair
+    register_combo_color(KC_COMM, 0, 210, 60); // Green   — cedilla trigger (,+C → ç)
+    register_combo_color(KC_E, 180, 180, 180); // White   — accent vowel
+    register_combo_color(KC_A, 180, 180, 180); // White   — accent vowel
+    register_combo_color(KC_U, 180, 180, 180); // White   — accent vowel
+    register_combo_color(KC_I, 180, 180, 180); // White   — accent vowel
+    register_combo_color(KC_O, 180, 180, 180); // White   — accent vowel
+    register_combo_color(KC_C, 180, 180, 180); // White   — accent vowel
 }
 
 bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {

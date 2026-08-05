@@ -151,74 +151,18 @@ Standard gaming layout without home row mods (so keys register immediately). Com
 
 ## Combos
 
-This keymap includes an extensive combo system for typing French accents and common words.
+French accent combos, all gated behind **F15** (hold F15 + chord; the F15
+indicator lights the participating keys in their role colors on the RGB).
 
-### Symbol Combos
-| Combo | Output | Description |
-|-------|--------|-------------|
-| `U` + `Y` | `:` | Colon |
-| `H` + `E` | `/` | Slash |
-| `H` + `.` | `=` | Equals |
-| `H` + `,` | `+` | Plus |
-| `.` + `,` | `_` | Underscore |
-| `N` + `U` | `<` | Less than |
-| `I` + `U` | `>` | Greater than |
-| `C` + `T` | `` ` `` | Backtick |
-| `C` + `R` | `~` | Tilde |
+Uniform dead-key model: every chord is `[accent trigger] + [letter]`.
 
-### Bracket Combos
-| Combo | Output | Keys |
-|-------|--------|------|
-| `(` | `W` + `T` | |
-| `)` | `Y` + `N` | |
-| `[` | `W` + `P` | |
-| `]` | `Y` + `L` | |
-| `{` | `W` + `S` | |
-| `}` | `Y` + `E` | |
-
-### French Accent Combos
-| Combo | Output | Keys |
-|-------|--------|------|
-| `é` | `E` + `I` | E acute |
-| `è` | `E` + `N` | E grave |
-| `ê` | `N` + `E` + `I` | E circumflex |
-| `î` | `E` + `I` + `O` | I circumflex |
-| `ô` | `I` + `O` | O circumflex |
-| `û` | `L` + `U` + `Y` | U circumflex |
-| `à` | `A` + `S` | A grave |
-| `ç` | `X` + `C` or `C` + `D` | C cedilla |
-
-### French Word Combos
-| Combo | Output |
-|-------|--------|
-| `B` + `O` + `U` | "beaucoup" |
-| `C` + `M` | "comme" |
-| `P` + `Q` | "pourquoi" |
-| `C` + `Q` | "chaque" |
-| `Q` + `E` | "que" |
-| `Q` + `I` | "qui" |
-| `Q` + `L` | "quel" |
-| `Q` + `D` | "quand" |
-| `M` + `T` | "ment" |
-| `P` + `L` | "plus" |
-| `L` + `R` | "leur" |
-| `T` + `Nav` | "tout" |
-| `T` + `R` + `O` | "trop" |
-
-### Numpad Combos (on Base layer)
-Hold `Space` and tap:
-| Combo | Output |
-|-------|--------|
-| `Space` + `M` | 0 |
-| `Space` + `H` | 1 |
-| `Space` + `,` | 2 |
-| `Space` + `.` | 3 |
-| `Space` + `N` | 4 |
-| `Space` + `E` | 5 |
-| `Space` + `I` | 6 |
-| `Space` + `L` | 7 |
-| `Space` + `U` | 8 |
-| `Space` + `Y` | 9 |
+| Accent | Trigger | Combos |
+|--------|---------|--------|
+| grave `` ` `` | `L` (orange) | `L`+`E` → `è` · `L`+`A` → `à` · `L`+`U` → `ù` |
+| acute ´ | `N` (gold) | `N`+`E` → `é` |
+| circumflex ^ | `H` (cyan) | `H`+`E` → `ê` · `H`+`A` → `â` · `H`+`I` → `î` · `H`+`O` → `ô` · `H`+`U` → `û` |
+| trema ¨ | `M` (magenta) | `M`+`E` → `ë` · `M`+`I` → `ï` · `M`+`U` → `ü` |
+| cedilla ¸ | `,` (green) | `,`+`C` → `ç` |
 
 ---
 
