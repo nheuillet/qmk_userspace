@@ -12,16 +12,14 @@ This keymap is based on [Vermoot's Kyria keymap](https://github.com/qmk/qmk_firm
 
 ## Layer Overview
 
-| Layer | Purpose |
-|-------|---------|
-| `_BASE` | Colemak-DH with home row mods |
-| `_QWERTY` | QWERTY layout with home row mods |
-| `_GAMING` | Gaming layout (no combos, standard keys) |
-| `_NAV` | Navigation arrows, Home/End, Page Up/Down, F-keys |
-| `_SYMBOLS` | Symbols, brackets, and numbers |
-| `_NUMS` | Numpad layer |
-| `_FUNCT` | Function keys |
-| `_MEDIA` | Media controls (volume, brightness, play/pause) |
+| Layer     | Purpose                                                                  |
+| --------- | ------------------------------------------------------------------------ |
+| `_BASE`   | Colemak-DH with home row mods                                            |
+| `_QWERTY` | QWERTY layout with home row mods                                         |
+| `_GAMING` | Gaming layout (no combos, standard keys)                                 |
+| `_NAV`    | Navigation: F-keys (color-coded per row), arrows, Home/End, Page Up/Down |
+| `_EDIT`   | Editing, terminal line navigation, media, app prefixes                   |
+| `_ADJUST` | Layer switches, RGB, brightness                                          |
 
 ---
 
@@ -113,7 +111,31 @@ Standard gaming layout without home row mods (so keys register immediately). Com
 
 ---
 
-## Symbols Layer
+## Edit Layer (hold right thumb)
+
+Editing cluster (left hand), terminal line navigation, media (right hand) and app prefixes (bottom right).
+
+```
+,-------------------------------------------.                              ,-------------------------------------------.
+|        |      |      |      |      |      |                              |        |      |      |      |      |        |
+|--------+------+------+------+------+------|                              |--------+------+------+------+------+--------|
+|        |      |      | Find |      |      |                              |        | Vol↓ |      | Vol↑ |      |        |
+|--------+------+------+------+------+------|                              |--------+------+------+------+------+--------|
+|        | SelA | Redo | CtrlA| CtrlE|      |                              |  Tmux  | Prev | Play | Next | Mute | GEN3  |
+|--------+------+------+------+------+------+-------------.  ,-------------+--------+------+------+------+------+--------|
+|        | Undo | Cut  | Copy | Paste|      |      |      |  |      |      |   Del  |  Pal | DevT | GEN1 | GEN2 |        |
+`----------------------+------+------+------+------+------|  |------+------+------+------+------+----------------------'
+                       |      |      |      |      |      |  |      |      |      |      |      |
+                       `----------------------------------'  `----------------------------------'
+```
+
+- **Editing**: Undo/Cut/Copy/Paste/Redo/Select-All/Find (QWERTY-position based)
+- **Terminal line nav**: Ctrl+A / Ctrl+E (beginning/end of line)
+- **Media**: Play/Prev/Next/Vol↑/Vol↓/Mute
+- **App commands**: Palette (Ctrl+Shift+P), DevTools (Ctrl+Shift+I)
+- **App prefixes**: Tmux (Ctrl+B), GEN1/GEN2/GEN3 (Ctrl+Alt+Shift+] / [ / Tab) — bind these in any app. Tap the prefix, release the thumb, then hit the command key.
+
+---
 
 ```
 ,-------------------------------------------.                              ,-------------------------------------------.
@@ -156,21 +178,22 @@ indicator lights the participating keys in their role colors on the RGB).
 
 Uniform dead-key model: every chord is `[accent trigger] + [letter]`.
 
-| Accent | Trigger | Combos |
-|--------|---------|--------|
-| grave `` ` `` | `L` (orange) | `L`+`E` → `è` · `L`+`A` → `à` · `L`+`U` → `ù` |
-| acute ´ | `N` (gold) | `N`+`E` → `é` |
-| circumflex ^ | `H` (cyan) | `H`+`E` → `ê` · `H`+`A` → `â` · `H`+`I` → `î` · `H`+`O` → `ô` · `H`+`U` → `û` |
-| trema ¨ | `M` (magenta) | `M`+`E` → `ë` · `M`+`I` → `ï` · `M`+`U` → `ü` |
-| cedilla ¸ | `,` (green) | `,`+`C` → `ç` |
+| Accent        | Trigger       | Combos                                                                        |
+| ------------- | ------------- | ----------------------------------------------------------------------------- |
+| grave `` ` `` | `L` (orange)  | `L`+`E` → `è` · `L`+`A` → `à` · `L`+`U` → `ù`                                 |
+| acute ´       | `N` (gold)    | `N`+`E` → `é`                                                                 |
+| circumflex ^  | `H` (cyan)    | `H`+`E` → `ê` · `H`+`A` → `â` · `H`+`I` → `î` · `H`+`O` → `ô` · `H`+`U` → `û` |
+| trema ¨       | `M` (magenta) | `M`+`E` → `ë` · `M`+`I` → `ï` · `M`+`U` → `ü`                                 |
+| cedilla ¸     | `,` (green)   | `,`+`C` → `ç`                                                                 |
 
 ---
 
 ## Encoder
 
 The Elora has 4 encoders. On the base layer:
+
 - **Top left**: Volume Up/Down
-- **Top right**: Volume Up/Down  
+- **Top right**: Volume Up/Down
 - **Bottom left**: Page Up/Down
 - **Bottom right**: Page Up/Down
 

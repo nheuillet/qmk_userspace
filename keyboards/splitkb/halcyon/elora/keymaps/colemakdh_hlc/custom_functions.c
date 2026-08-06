@@ -11,6 +11,35 @@ enum rgb_background {
     RGB_BG_WHITE,
 };
 
+// --- Color palette: one definition per category, shared across all layers ---
+// Pass these straight to register_color_for_keycode(); never hardcode RGB values.
+
+#define C_EDIT 255, 120, 0      // Orange — editing actions (cut/copy/paste/undo/redo/select/find) & special actions (screen lock, RGB saturation)
+#define C_MOVE 0, 255, 255      // Cyan — movement & navigation (arrows, page up/down, line start/end, RGB mode next)
+#define C_MOVE_DEEP 0, 160, 255  // Deeper blue — EDIT layer text movement (line start/end)
+#define C_PREFIX 128, 0, 255    // Purple — system prefixes & F-keys (tmux, generic prefixes, F13)
+#define C_APP 255, 0, 255       // Magenta — app commands (command palette, devtools)
+#define C_GO 0, 255, 0          // Green — positive/confirm (home/end, play, BASE layer)
+#define C_MEDIA 0, 100, 255     // Blue — media prev/next, QWERTY layer
+#define C_MOD 255, 255, 0       // Yellow — modifiers & level adjustments (mods, volume, brightness, RGB value)
+#define C_DESTRUCT 255, 0, 0    // Red — destructive/stop (mute, delete, GAMING layer, RGB matrix toggle)
+#define C_NEUTRAL 180, 180, 180 // White — neutral targets (combo accent vowels)
+#define C_GOLD 255, 200, 0      // Gold — combo acute trigger
+
+// F-key rows — one hue per row so you can locate F-keys by color
+#define C_FROW_1 0, 200, 200 // Teal — F1–F4
+#define C_FROW_2 0, 100, 255 // Blue — F5–F8
+#define C_FROW_3 128, 0, 255 // Purple — F9–F12
+#define C_FROW_4 255, 0, 255 // Magenta — F13–F16
+
+// Combo indicator colors (accent triggers, shown while F15 is held)
+#define C_COMBO_GRAVE 255, 110, 0 // Orange — grave trigger (L)
+#define C_COMBO_ACUTE C_GOLD      // Gold — acute partner (N)
+#define C_COMBO_CIRC 0, 220, 255  // Cyan — circumflex trigger (H)
+#define C_COMBO_TRM 220, 0, 220   // Magenta — trema trigger (M)
+#define C_COMBO_CED 0, 210, 60    // Green — cedilla trigger (COMM)
+#define C_COMBO_VOWEL C_NEUTRAL   // White — accent vowels
+
 static enum rgb_background current_rgb_bg = RGB_BG_OFF;
 
 typedef struct {
@@ -94,98 +123,120 @@ void keyboard_post_init_user(void) {
 
     // 1. Specific key overrides first (wildcards fill the rest after)
 
-    // NAV layer - Page navigation
-    register_color_for_keycode(_NAV, KC_HOME, 0, 255, 0); // Green
-    register_color_for_keycode(_NAV, KC_END, 0, 255, 0);  // Green
-    register_color_for_keycode(_NAV, KC_PGUP, 255, 0, 0); // Red
-    register_color_for_keycode(_NAV, KC_PGDN, 255, 0, 0); // Red
+    // NAV layer - Page navigation (movement = cyan)
+    register_color_for_keycode(_NAV, KC_HOME, C_GO);   // Green — home
+    register_color_for_keycode(_NAV, KC_END, C_GO);    // Green — end
+    register_color_for_keycode(_NAV, KC_PGUP, C_MOVE); // Cyan — page up
+    register_color_for_keycode(_NAV, KC_PGDN, C_MOVE); // Cyan — page down
 
-    // NAV layer - Arrow keys
-    register_color_for_keycode(_NAV, KC_LEFT, 0, 255, 255); // Cyan
-    register_color_for_keycode(_NAV, KC_DOWN, 0, 255, 255); // Cyan
-    register_color_for_keycode(_NAV, KC_UP, 0, 255, 255);   // Cyan
-    register_color_for_keycode(_NAV, KC_RGHT, 0, 255, 255); // Cyan
+    // NAV layer - Arrow keys (movement = cyan)
+    register_color_for_keycode(_NAV, KC_LEFT, C_MOVE);
+    register_color_for_keycode(_NAV, KC_DOWN, C_MOVE);
+    register_color_for_keycode(_NAV, KC_UP, C_MOVE);
+    register_color_for_keycode(_NAV, KC_RGHT, C_MOVE);
 
     // NAV layer - Modifiers
-    register_color_for_keycode(_NAV, KC_LSFT, 255, 255, 0); // Yellow
-    register_color_for_keycode(_NAV, KC_LCTL, 255, 255, 0); // Yellow
-    register_color_for_keycode(_NAV, KC_LALT, 255, 255, 0); // Yellow
-    register_color_for_keycode(_NAV, KC_LGUI, 255, 255, 0); // Yellow
+    register_color_for_keycode(_NAV, KC_LSFT, C_MOD);
+    register_color_for_keycode(_NAV, KC_LCTL, C_MOD);
+    register_color_for_keycode(_NAV, KC_LALT, C_MOD);
+    register_color_for_keycode(_NAV, KC_LGUI, C_MOD);
 
     // NAV layer - Special actions
-    register_color_for_keycode(_NAV, G(KC_L), 255, 120, 0); // Orange — screen lock (Super+L)
-    register_color_for_keycode(_NAV, KC_DEL, 255, 120, 0);  // Orange
+    register_color_for_keycode(_NAV, G(KC_L), C_EDIT);    // Orange — screen lock (Super+L)
+    register_color_for_keycode(_NAV, KC_DEL, C_DESTRUCT); // Red — delete
 
-    // FKEYS layer - Function keys (color by row)
-    register_color_for_keycode(_FKEYS, KC_F1, 0, 200, 200);  // Teal
-    register_color_for_keycode(_FKEYS, KC_F2, 0, 200, 200);  // Teal
-    register_color_for_keycode(_FKEYS, KC_F3, 0, 200, 200);  // Teal
-    register_color_for_keycode(_FKEYS, KC_F4, 0, 200, 200);  // Teal
-    register_color_for_keycode(_FKEYS, KC_F5, 0, 100, 255);  // Blue
-    register_color_for_keycode(_FKEYS, KC_F6, 0, 100, 255);  // Blue
-    register_color_for_keycode(_FKEYS, KC_F7, 0, 100, 255);  // Blue
-    register_color_for_keycode(_FKEYS, KC_F8, 0, 100, 255);  // Blue
-    register_color_for_keycode(_FKEYS, KC_F9, 128, 0, 255);  // Purple
-    register_color_for_keycode(_FKEYS, KC_F10, 128, 0, 255); // Purple
-    register_color_for_keycode(_FKEYS, KC_F11, 128, 0, 255); // Purple
-    register_color_for_keycode(_FKEYS, KC_F12, 128, 0, 255); // Purple
-    register_color_for_keycode(_FKEYS, KC_F13, 128, 0, 255); // Purple
-    register_color_for_keycode(_FKEYS, KC_F14, 128, 0, 255); // Purple
-    register_color_for_keycode(_FKEYS, KC_F15, 128, 0, 255); // Purple
-    register_color_for_keycode(_FKEYS, KC_F16, 128, 0, 255); // Purple
+    // NAV layer - Function keys (one hue per row)
+    register_color_for_keycode(_NAV, KC_F1, C_FROW_1);  // Teal
+    register_color_for_keycode(_NAV, KC_F2, C_FROW_1);  // Teal
+    register_color_for_keycode(_NAV, KC_F3, C_FROW_1);  // Teal
+    register_color_for_keycode(_NAV, KC_F4, C_FROW_1);  // Teal
+    register_color_for_keycode(_NAV, KC_F5, C_FROW_2);  // Blue
+    register_color_for_keycode(_NAV, KC_F6, C_FROW_2);  // Blue
+    register_color_for_keycode(_NAV, KC_F7, C_FROW_2);  // Blue
+    register_color_for_keycode(_NAV, KC_F8, C_FROW_2);  // Blue
+    register_color_for_keycode(_NAV, KC_F9, C_FROW_3);  // Purple
+    register_color_for_keycode(_NAV, KC_F10, C_FROW_3); // Purple
+    register_color_for_keycode(_NAV, KC_F11, C_FROW_3); // Purple
+    register_color_for_keycode(_NAV, KC_F12, C_FROW_3); // Purple
+    register_color_for_keycode(_NAV, KC_F13, C_FROW_4); // Magenta
+    register_color_for_keycode(_NAV, KC_F14, C_FROW_4); // Magenta
+    register_color_for_keycode(_NAV, KC_F15, C_FROW_4); // Magenta
+    register_color_for_keycode(_NAV, KC_F16, C_FROW_4); // Magenta
 
-    // FKEYS layer - Modifiers
-    register_color_for_keycode(_FKEYS, KC_RSFT, 255, 255, 0); // Yellow
-    register_color_for_keycode(_FKEYS, KC_RCTL, 255, 255, 0); // Yellow
-    register_color_for_keycode(_FKEYS, KC_LALT, 255, 255, 0); // Yellow
-    register_color_for_keycode(_FKEYS, KC_RGUI, 255, 255, 0); // Yellow
+    // EDIT layer - Editing actions
+    // Undo/Redo keep orange (C_EDIT) — reversals/undo = warm
+    register_color_for_keycode(_EDIT, EDIT_UNDO, C_EDIT);
+    register_color_for_keycode(_EDIT, EDIT_REDO, C_EDIT);
+    // Cut/Copy/Paste go green (C_GO) — "do the clipboard action"
+    register_color_for_keycode(_EDIT, EDIT_CUT, C_GO);
+    register_color_for_keycode(_EDIT, EDIT_COPY, C_GO);
+    register_color_for_keycode(_EDIT, EDIT_PASTE, C_GO);
+    // Selection & find pop in yellow (C_MOD) — highlight/select association
+    register_color_for_keycode(_EDIT, EDIT_SELALL, C_MOD);
+    register_color_for_keycode(_EDIT, EDIT_FIND, C_MOD);
+
+    // EDIT layer - Text movement (line start/end) — deeper blue, distinct from NAV cyan
+    register_color_for_keycode(_EDIT, EDIT_LINE_START, C_MOVE_DEEP); // Ctrl+A — beginning of line
+    register_color_for_keycode(_EDIT, EDIT_LINE_END, C_MOVE_DEEP);   // Ctrl+E — end of line
+
+    // EDIT layer - App prefixes
+    register_color_for_keycode(_EDIT, PREFIX_TMUX, C_PREFIX);
+    register_color_for_keycode(_EDIT, PREFIX_GEN1, C_PREFIX);
+    register_color_for_keycode(_EDIT, PREFIX_GEN2, C_PREFIX);
+    register_color_for_keycode(_EDIT, PREFIX_GEN3, C_PREFIX);
+
+    // EDIT layer - App commands
+    register_color_for_keycode(_EDIT, APP_PALETTE, C_APP);  // Magenta
+    register_color_for_keycode(_EDIT, APP_DEVTOOLS, C_APP); // Magenta
+
+    // EDIT layer - Media
+    register_color_for_keycode(_EDIT, KC_MPLY, C_GO);       // Green — play
+    register_color_for_keycode(_EDIT, KC_MPRV, C_MEDIA);    // Blue — prev
+    register_color_for_keycode(_EDIT, KC_MNXT, C_MEDIA);    // Blue — next
+    register_color_for_keycode(_EDIT, KC_VOLU, C_MOD);      // Yellow — volume up
+    register_color_for_keycode(_EDIT, KC_VOLD, C_MOD);      // Yellow — volume down
+    register_color_for_keycode(_EDIT, KC_MUTE, C_DESTRUCT); // Red — mute
+
+    // EDIT layer - Utility
+    register_color_for_keycode(_EDIT, KC_DEL, C_DESTRUCT); // Red — delete
 
     // ADJUST layer - Layer switches
-    register_color_for_keycode(_ADJUST, BASE, 0, 255, 0);     // Green
-    register_color_for_keycode(_ADJUST, GAMING, 255, 0, 0);   // Red
-    register_color_for_keycode(_ADJUST, QWERTY, 0, 100, 255); // Blue
+    register_color_for_keycode(_ADJUST, BASE, C_GO);         // Green
+    register_color_for_keycode(_ADJUST, GAMING, C_DESTRUCT); // Red
+    register_color_for_keycode(_ADJUST, QWERTY, C_MEDIA);    // Blue
 
     // ADJUST layer - RGB controls
-    register_color_for_keycode(_ADJUST, RGB_MODE_TOGGLE, 255, 0, 255); // Magenta
-    register_color_for_keycode(_ADJUST, RM_TOGG, 255, 0, 0);           // Red
-    register_color_for_keycode(_ADJUST, RM_VALU, 255, 255, 0);         // Yellow
-    register_color_for_keycode(_ADJUST, RM_VALD, 255, 255, 0);         // Yellow
-    register_color_for_keycode(_ADJUST, RM_SATU, 255, 120, 0);         // Orange
-    register_color_for_keycode(_ADJUST, RM_SATD, 255, 120, 0);         // Orange
-    register_color_for_keycode(_ADJUST, RM_NEXT, 0, 255, 255);         // Cyan
+    register_color_for_keycode(_ADJUST, RGB_MODE_TOGGLE, C_APP); // Magenta
+    register_color_for_keycode(_ADJUST, RM_TOGG, C_DESTRUCT);    // Red
+    register_color_for_keycode(_ADJUST, RM_VALU, C_MOD);         // Yellow
+    register_color_for_keycode(_ADJUST, RM_VALD, C_MOD);         // Yellow
+    register_color_for_keycode(_ADJUST, RM_SATU, C_EDIT);        // Orange
+    register_color_for_keycode(_ADJUST, RM_SATD, C_EDIT);        // Orange
+    register_color_for_keycode(_ADJUST, RM_NEXT, C_MOVE);        // Cyan
 
-    // ADJUST layer - Media controls
-    register_color_for_keycode(_ADJUST, KC_VOLU, 255, 255, 0); // Yellow
-    register_color_for_keycode(_ADJUST, KC_VOLD, 255, 255, 0); // Yellow
-    register_color_for_keycode(_ADJUST, KC_MUTE, 255, 0, 0);   // Red
-    register_color_for_keycode(_ADJUST, KC_MRWD, 0, 100, 255); // Blue
-    register_color_for_keycode(_ADJUST, KC_MFFD, 0, 100, 255); // Blue
-    register_color_for_keycode(_ADJUST, KC_MPLY, 0, 255, 0);   // Green
-
-    // ADJUST layer - Brightness
-    register_color_for_keycode(_ADJUST, KC_BRIU, 255, 255, 0); // Yellow
-    register_color_for_keycode(_ADJUST, KC_BRID, 255, 255, 0); // Yellow
-    register_color_for_keycode(_ADJUST, KC_F13, 128, 0, 255);  // Purple
+    // ADJUST layer - Brightness & misc
+    register_color_for_keycode(_ADJUST, KC_BRIU, C_MOD);   // Yellow
+    register_color_for_keycode(_ADJUST, KC_BRID, C_MOD);   // Yellow
+    register_color_for_keycode(_ADJUST, KC_F13, C_PREFIX); // Purple
 
     // 2. Wildcard fills any remaining active key on each layer
-    register_color_for_keycode(_NAV, RGB_WILDCARD, 0, 50, 255);   // Blue base
-    register_color_for_keycode(_FKEYS, RGB_WILDCARD, 255, 0, 0);  // Red base
-    register_color_for_keycode(_ADJUST, RGB_WILDCARD, 0, 255, 0); // Green base
+    register_color_for_keycode(_NAV, RGB_WILDCARD, 0, 50, 255); // Blue base
+    register_color_for_keycode(_ADJUST, RGB_WILDCARD, C_GO);    // Green base
 
     // --- COMBO INDICATOR COLORS (visible when F15 is held) ---
     // L = grave (`) trigger | N = acute (´) partner | H = circumflex (^) trigger
     // M = trema (¨) trigger | COMM = cedilla (¸) trigger | White vowels = accent targets
-    register_combo_color(KC_L, 255, 110, 0);   // Orange  — grave trigger
-    register_combo_color(KC_N, 255, 200, 0);   // Gold    — acute partner (N+E → é)
-    register_combo_color(KC_H, 0, 220, 255);   // Cyan    — circumflex trigger
-    register_combo_color(KC_M, 220, 0, 220);   // Magenta — trema trigger
-    register_combo_color(KC_COMM, 0, 210, 60); // Green   — cedilla trigger (,+C → ç)
-    register_combo_color(KC_E, 180, 180, 180); // White   — accent vowel
-    register_combo_color(KC_A, 180, 180, 180); // White   — accent vowel
-    register_combo_color(KC_U, 180, 180, 180); // White   — accent vowel
-    register_combo_color(KC_I, 180, 180, 180); // White   — accent vowel
-    register_combo_color(KC_O, 180, 180, 180); // White   — accent vowel
-    register_combo_color(KC_C, 180, 180, 180); // White   — accent vowel
+    register_combo_color(KC_L, C_COMBO_GRAVE);  // Orange — grave trigger
+    register_combo_color(KC_N, C_COMBO_ACUTE);  // Gold   — acute partner (N+E → é)
+    register_combo_color(KC_H, C_COMBO_CIRC);   // Cyan   — circumflex trigger
+    register_combo_color(KC_M, C_COMBO_TRM);    // Magenta — trema trigger
+    register_combo_color(KC_COMM, C_COMBO_CED); // Green  — cedilla trigger (,+C → ç)
+    register_combo_color(KC_E, C_COMBO_VOWEL);  // White  — accent vowel
+    register_combo_color(KC_A, C_COMBO_VOWEL);  // White  — accent vowel
+    register_combo_color(KC_U, C_COMBO_VOWEL);  // White  — accent vowel
+    register_combo_color(KC_I, C_COMBO_VOWEL);  // White  — accent vowel
+    register_combo_color(KC_O, C_COMBO_VOWEL);  // White  — accent vowel
+    register_combo_color(KC_C, C_COMBO_VOWEL);  // White  — accent vowel
 }
 
 bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
@@ -233,6 +284,13 @@ bool accented_letter(uint16_t accent, uint16_t letter, bool pressed) {
         unregister_code(letter); // release on key-up (enables held-key repeat)
     }
     return false;
+}
+
+// Send a modifier+key chord (e.g. Ctrl+Shift+P), preserving any mods already held.
+static void send_chord(uint8_t mods, uint16_t keycode) {
+    register_mods(mods);
+    tap_code16(keycode);
+    unregister_mods(mods);
 }
 
 // --- QMK callbacks ----------------------------------------------------------
@@ -315,6 +373,57 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             return accented_letter(S(KC_QUOT), KC_I, pressed);
         case U_TRM:
             return accented_letter(S(KC_QUOT), KC_U, pressed);
+
+        // EDIT layer - text editing (Ctrl chords)
+        case EDIT_UNDO:
+            if (pressed) send_chord(MOD_LCTL, KC_Z);
+            return false;
+        case EDIT_REDO:
+            if (pressed) send_chord(MOD_LCTL | MOD_LSFT, KC_Z);
+            return false;
+        case EDIT_CUT:
+            if (pressed) send_chord(MOD_LCTL, KC_X);
+            return false;
+        case EDIT_COPY:
+            if (pressed) send_chord(MOD_LCTL, KC_C);
+            return false;
+        case EDIT_PASTE:
+            if (pressed) send_chord(MOD_LCTL, KC_V);
+            return false;
+        case EDIT_SELALL:
+            if (pressed) send_chord(MOD_LCTL, KC_A);
+            return false;
+        case EDIT_FIND:
+            if (pressed) send_chord(MOD_LCTL, KC_F);
+            return false;
+        case EDIT_LINE_START: // Ctrl+A — beginning of line (terminals)
+            if (pressed) send_chord(MOD_LCTL, KC_A);
+            return false;
+        case EDIT_LINE_END: // Ctrl+E — end of line (terminals)
+            if (pressed) send_chord(MOD_LCTL, KC_E);
+            return false;
+
+        // EDIT layer - app commands
+        case APP_PALETTE:
+            if (pressed) send_chord(MOD_LCTL | MOD_LSFT, KC_P);
+            return false;
+        case APP_DEVTOOLS:
+            if (pressed) send_chord(MOD_LCTL | MOD_LSFT, KC_I);
+            return false;
+
+        // EDIT layer - app prefixes
+        case PREFIX_TMUX:
+            if (pressed) send_chord(MOD_LCTL, KC_B);
+            return false;
+        case PREFIX_GEN1:
+            if (pressed) send_chord(MOD_LCTL | MOD_LALT | MOD_LSFT, KC_RBRC);
+            return false;
+        case PREFIX_GEN2:
+            if (pressed) send_chord(MOD_LCTL | MOD_LALT | MOD_LSFT, KC_LBRC);
+            return false;
+        case PREFIX_GEN3:
+            if (pressed) send_chord(MOD_LCTL | MOD_LALT | MOD_LSFT, KC_TAB);
+            return false;
 
         default:
             return true;

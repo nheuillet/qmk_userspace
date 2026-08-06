@@ -1,0 +1,1106 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
+"""Generate an interactive HTML keymap viewer from a QMK keymap.
+
+Tier-4 of the keymap visualization: a self-contained HTML page with layer tabs,
+hover tooltips, a light/dark theme, and the F15 combo mode (role dots, accent
+glyph badges on the keys, and a chord panel) — everything derived from the
+keymap sources (keymap.c, custom_keycodes.h, combos.c, custom_functions.c).
+
+Reads only — never writes into the keymap's directory. Output goes to
+<userspace>/viz/<keyboard>/<keymap>/keymap.html by default.
+
+Only external requirement: the `qmk` CLI with your QMK_HOME configured.
+
+Usage:
+  ./tools/keymap-html -kb <keyboard> -km <keymap> [-o <outfile>] [--layout LAYOUT_foo]
+                      [--halcyon-modules] [--triggers KC_X:accent ...]
+
+Example:
+  ./tools/keymap-html -kb splitkb/halcyon/elora -km colemakdh_hlc
+"""
+
+import argparse
+import configparser
+import json
+import os
+import pathlib
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import urllib.request
+from pathlib import Path
+
+MACRO_RE = re.compile(r"^\s*#define\s+([A-Za-z_]\w*)\s+(.+)$", re.M)
+DESIGNATOR_RE = re.compile(r"\[\s*([_A-Za-z][_A-Za-z0-9]*)\s*\]\s*=\s*LAYOUT_?")
+
+# --- French accent orthography (result char -> accent type) -----------------
+COMPOSED = {
+    "e": {"acute": "é", "grave": "è", "circumflex": "ê", "trema": "ë"},
+    "a": {"grave": "à", "circumflex": "â"},
+    "i": {"circumflex": "î", "trema": "ï"},
+    "o": {"circumflex": "ô"},
+    "u": {"grave": "ù", "circumflex": "û", "trema": "ü"},
+    "c": {"cedilla": "ç"},
+}
+CHAR_TYPE = {ch: t for base, d in COMPOSED.items() for t, ch in d.items()}
+ACCENT_TYPES = set(CHAR_TYPE.values())
+UNDEAD_TAPS = {"KC_QUOT": "'", "KC_GRV": "`", "S(KC_6)": "^", "S(KC_QUOT)": '"', "S(KC_GRV)": "~"}
+TAP_OVERRIDES = {
+    # long token names get a compact, two-line keycap label
+    "RGB_MODE_TOGGLE": "RGB<br>MODE<br>TOGGLE",
+    "RM_TOGG": "RM<br>TOGG",
+    "RM_VALU": "RM<br>VALU",
+    "RM_VALD": "RM<br>VALD",
+    "RM_SATU": "RM<br>SATU",
+    "RM_SATD": "RM<br>SATD",
+    "RM_NEXT": "RM<br>NEXT",
+    # EDIT layer (keep them short — chord is in the tooltip)
+    "EDIT_UNDO": "UNDO",
+    "EDIT_REDO": "REDO",
+    "EDIT_CUT": "CUT",
+    "EDIT_COPY": "COPY",
+    "EDIT_PASTE": "PASTE",
+    "EDIT_SELALL": "SEL<br>ALL",
+    "EDIT_FIND": "FIND",
+    "EDIT_LINE_START": "LINE<br>START",
+    "EDIT_LINE_END": "LINE<br>END",
+    "APP_PALETTE": "CMD<br>PALETTE",
+    "APP_DEVTOOLS": "DEV<br>TOOLS",
+    "PREFIX_TMUX": "TMUX<br>PREFIX",
+    "PREFIX_GEN1": "PREFIX<br>1",
+    "PREFIX_GEN2": "PREFIX<br>2",
+    "PREFIX_GEN3": "PREFIX<br>3",
+}
+RM_DESC = {
+    "RGB_MODE_TOGGLE": "Cycle RGB background mode: off ⇄ white",
+    "RM_TOGG": "RGB matrix: toggle",
+    "RM_VALU": "RGB matrix: brightness up",
+    "RM_VALD": "RGB matrix: brightness down",
+    "RM_SATU": "RGB matrix: saturation up",
+    "RM_SATD": "RGB matrix: saturation down",
+    "RM_NEXT": "RGB matrix: next mode",
+    "RM_PREV": "RGB matrix: previous mode",
+    "RM_HUEU": "RGB matrix: hue up",
+    "RM_HUED": "RGB matrix: hue down",
+}
+
+# human labels for keycode tokens (used in descriptions and combo chips)
+KC_LABELS = {
+    "KC_0": "0", "KC_1": "1", "KC_2": "2", "KC_3": "3", "KC_4": "4", "KC_5": "5",
+    "KC_6": "6", "KC_7": "7", "KC_8": "8", "KC_9": "9",
+    "KC_A": "A", "KC_B": "B", "KC_C": "C", "KC_D": "D", "KC_E": "E", "KC_F": "F",
+    "KC_G": "G", "KC_H": "H", "KC_I": "I", "KC_J": "J", "KC_K": "K", "KC_L": "L",
+    "KC_M": "M", "KC_N": "N", "KC_O": "O", "KC_P": "P", "KC_Q": "Q", "KC_R": "R",
+    "KC_S": "S", "KC_T": "T", "KC_U": "U", "KC_V": "V", "KC_W": "W", "KC_X": "X",
+    "KC_Y": "Y", "KC_Z": "Z",
+    "KC_SPC": "Space", "KC_BSPC": "Bksp", "KC_TAB": "Tab", "KC_ENT": "Enter",
+    "KC_ESC": "Esc", "KC_DEL": "Del", "KC_CAPS": "Caps",
+    "KC_MINUS": "-", "KC_EQL": "=", "KC_LBRC": "[", "KC_RBRC": "]", "KC_SCLN": ";",
+    "KC_QUOTE": "'", "KC_GRV": "`", "KC_NUBS": "\\", "KC_COMM": ",", "KC_DOT": ".",
+    "KC_SLSH": "/", "KC_NUHS": "#",
+    "KC_HOME": "Home", "KC_END": "End", "KC_PGUP": "PgUp", "KC_PGDN": "PgDn",
+    "KC_SCRL": "ScrLk", "KC_LEFT": "←", "KC_DOWN": "↓", "KC_UP": "↑", "KC_RGHT": "→",
+    "KC_LSFT": "Shift", "KC_RSFT": "RShift", "KC_LCTL": "Ctrl", "KC_RCTL": "RCtrl",
+    "KC_LALT": "Alt", "KC_LGUI": "Win", "KC_RGUI": "RWin",
+    "KC_F1": "F1", "KC_F2": "F2", "KC_F3": "F3", "KC_F4": "F4", "KC_F5": "F5",
+    "KC_F6": "F6", "KC_F7": "F7", "KC_F8": "F8", "KC_F9": "F9", "KC_F10": "F10",
+    "KC_F11": "F11", "KC_F12": "F12", "KC_F13": "F13", "KC_F14": "F14", "KC_F15": "F15", "KC_F16": "F16",
+    "KC_MUTE": "Mute", "KC_VOLU": "Vol+", "KC_VOLD": "Vol-", "KC_MRWD": "Prev", "KC_MPRV": "Prev",
+    "KC_MPLY": "Play", "KC_MFFD": "Next", "KC_MNXT": "Next", "KC_NO": "—",
+}
+MOD_LABELS = {
+    "MOD_LALT": "Alt", "MOD_LCTL": "Ctrl", "MOD_RCTL": "RCtrl", "MOD_LSFT": "Shift",
+    "MOD_RSFT": "RShift", "MOD_LGUI": "Win", "MOD_RGUI": "RWin",
+}
+
+
+# --- qmk plumbing (same as tools/keymap-viz) ---------------------------------
+
+def run(cmd, **kw):
+    proc = subprocess.run(cmd, capture_output=True, text=True, **kw)
+    if proc.returncode != 0:
+        sys.stderr.write(f"$ {' '.join(cmd)}\n{proc.stderr[-4000:]}\n")
+        sys.exit(f"command failed: {' '.join(cmd[:2])}")
+    return proc
+
+
+def qmk_roots():
+    def from_env():
+        return {"overlay": os.environ.get("QMK_USERSPACE"), "home": os.environ.get("QMK_HOME")}
+
+    def from_ini():
+        out = {}
+        path = Path("~/.config/qmk/qmk.ini").expanduser()
+        if path.is_file():
+            cp = configparser.ConfigParser()
+            cp.read(path)
+            if cp.has_section("user"):
+                out["overlay"] = cp.get("user", "overlay_dir", fallback=None)
+                out["home"] = cp.get("user", "qmk_home", fallback=None)
+        return out
+
+    env, ini = from_env(), from_ini()
+    overlay = env["overlay"] or ini["overlay"]
+    home = env["home"] or ini["home"]
+    if not (overlay or home) and shutil.which("qmk"):
+        try:
+            proc = subprocess.run(["qmk", "config"], capture_output=True, text=True, timeout=15)
+            cfg = dict(line.split("=", 1) for line in proc.stdout.splitlines() if "=" in line)
+            overlay = overlay or cfg.get("user.overlay_dir")
+            home = home or cfg.get("user.qmk_home")
+        except Exception:
+            pass
+    roots = [Path(p) for p in (overlay, home) if p]
+    if not roots:
+        sys.exit("cannot locate QMK directories (set QMK_USERSPACE/QMK_HOME or run `qmk config`)")
+    return roots
+
+
+def find_keymap_c(kb, km, roots):
+    parts = kb.split("/")
+    kb_variants = ["/".join(parts[:i]) for i in range(len(parts), 0, -1)]
+    for root in roots:
+        for variant in kb_variants:
+            cand = root / "keyboards" / variant / "keymaps" / km / "keymap.c"
+            if cand.is_file():
+                return cand
+    sys.exit(f"keymap.c not found for -kb {kb} -km {km} (searched userspace + qmk_home)")
+
+
+def resolve_kb(kb, roots):
+    parts = kb.split("/")
+    for root in roots:
+        base = root / "keyboards" / kb
+        if not base.is_dir():
+            continue
+        if re.match(r"^rev\d+$", parts[-1]):
+            return kb
+        revs = sorted(d.name for d in base.iterdir() if d.is_dir() and re.match(r"^rev\d+$", d.name))
+        if revs:
+            sys.stderr.write(f"note: -kb {kb} not found directly, using {kb}/{revs[0]}\n")
+            return f"{kb}/{revs[0]}"
+        if (base / "info.json").is_file() or (base / "keyboard.json").is_file():
+            return kb
+    qmk = shutil.which("qmk")
+    if qmk:
+        listed = subprocess.run([qmk, "list-keyboards"], capture_output=True, text=True).stdout.split()
+        matches = sorted(n for n in listed if n.startswith(kb + "/"))
+        if matches:
+            sys.stderr.write(f"note: -kb {kb} not found directly, using {matches[0]}\n")
+            return matches[0]
+    sys.exit(f"keyboard {kb} not found under any QMK keyboards/ tree")
+
+
+def strip_comments(text):
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    text = re.sub(r"//[^\n]*", "", text)
+    return text
+
+
+def extract_layer_names(keymap_c):
+    names = []
+    for m in DESIGNATOR_RE.finditer(strip_comments(keymap_c)):
+        name = m.group(1)
+        if name not in names:
+            names.append(name)
+    return [n.lstrip("_") for n in names]
+
+
+def load_object_macros(keymap_dir, keymap_c):
+    sources = [strip_comments(keymap_c)]
+    for h in sorted(keymap_dir.glob("*.h")):
+        sources.append(strip_comments(h.read_text(errors="replace")))
+    macros = {}
+    for text in sources:
+        text = re.sub(r"\\\n\s*", " ", text)
+        for m in MACRO_RE.finditer(text):
+            name, body = m.group(1), m.group(2).strip()
+            if body.startswith("("):
+                continue
+            macros[name] = body
+    return macros
+
+
+def expand(text, macros, iterations=8):
+    for _ in range(iterations):
+        new = text
+        for name, body in macros.items():
+            new = re.sub(rf"\b{re.escape(name)}\b", lambda m, b=body: b, new)
+        if new == text:
+            return text
+        text = new
+    return text
+
+
+def find_layout_json(layout_name, kb, roots):
+    kb_parts = kb.split("/")
+    kb_base = kb_parts[-2] if re.match(r"^rev\d+$", kb_parts[-1]) else kb_parts[-1]
+
+    def read_json(path):
+        try:
+            return json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return None
+
+    def find_in(data, name):
+        if name == "LAYOUT":
+            resolved = data.get("layout_aliases", {}).get("LAYOUT")
+            return resolved if resolved in data.get("layouts", {}) else None
+        return name if name in data.get("layouts", {}) else None
+
+    if layout_name != "LAYOUT":
+        for root in roots:
+            cand = root / "layouts" / f"{kb_base}.json"
+            if cand.is_file() and find_in(read_json(cand), layout_name):
+                return cand, layout_name
+
+    kb_candidates = []
+    for root in roots:
+        for i in range(len(kb_parts), 0, -1):
+            kb_candidates.append(root / "keyboards" / "/".join(kb_parts[:i]) / "info.json")
+    for cand in kb_candidates:
+        data = read_json(cand)
+        resolved = find_in(data, layout_name) if data else None
+        if resolved:
+            return cand, resolved
+
+    url = f"https://keyboards.qmk.fm/v1/keyboards/{kb}/info.json"
+    try:
+        data = json.loads(urllib.request.urlopen(url, timeout=10).read())
+        if layout_name == "LAYOUT":
+            resolved = data.get("layout_aliases", {}).get("LAYOUT")
+            layout_name = resolved if resolved in data.get("layouts", {}) else next(iter(data.get("layouts", {})))
+        if layout_name in data.get("layouts", {}):
+            with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+                json.dump(data, f)
+                return pathlib.Path(f.name), layout_name
+    except Exception as exc:
+        sys.exit(f"layout {layout_name} not found locally or via {url} ({exc})")
+    sys.exit(f"layout {layout_name} not found in any known info.json")
+
+
+def halcyon_modules_present(keymap_dir):
+    text = ""
+    for f in keymap_dir.iterdir():
+        if f.is_file() and (f.suffix in (".h", ".c") or f.name in ("rules.mk", "config.h", "keymap.c")):
+            text += f.read_text(errors="replace") + "\n"
+    found = []
+    for m in re.finditer(r"^\s*#\s*(?:define|ifdef|ifndef)\s+(HLC_\w+)", text, re.M):
+        if m.group(1) not in ("HLC_NONE",) and m.group(1) not in found:
+            found.append(m.group(1))
+    return found
+
+
+def module_slot_indices(layout_entries):
+    ys = {}
+    for i, k in enumerate(layout_entries):
+        ys.setdefault(round(float(k.get("y", 0)), 3), []).append(i)
+    if not ys:
+        return []
+    max_y = max(ys)
+    idxs = ys[max_y]
+    others = [y for y in ys if y != max_y]
+    if len(idxs) == 10 and others and (max_y - max(others)) >= 1.0:
+        return idxs
+    return []
+
+
+# --- derive keymap-specific data from the sources ----------------------------
+
+def parse_key_actions(custom_functions_c):
+    """case E_ACUTE: return accented_letter(KC_QUOT, KC_E, pressed); -> {E_ACUTE: (fn, args)}
+    Also handles the CTL_QUOT tap-count undead pattern and `send_chord(mods, key)`
+    editor/prefix commands."""
+    actions = {}
+    for m in re.finditer(r"case\s+(\w+):\s*return\s+(\w+)\(([^;]+?)\);", custom_functions_c):
+        tok, fn = m.group(1), m.group(2)
+        args = [a.strip() for a in m.group(3).split(",") if a.strip()]
+        actions[tok] = (fn, args)
+    for m in re.finditer(r"case\s+(\w+):\s*if\s*\(record->tap\.count\s*>\s*0\)\s*\{\s*return\s+undead\(([\w()]+),\s*pressed\);", custom_functions_c):
+        actions[m.group(1)] = ("undead", [m.group(2)])
+    for m in re.finditer(r"case\s+(\w+):\s*(?:/[^\n]*)?\s*if\s*\(pressed\)\s*send_chord\(([^;]+)\);", custom_functions_c):
+        args = [a.strip() for a in m.group(2).split(",") if a.strip()]
+        actions[m.group(1)] = ("send_chord", args)
+    return actions
+
+
+def accent_type_for(accent_kc, letter_kc):
+    if accent_kc == "KC_GRV":
+        return "grave"
+    if accent_kc == "S(KC_6)":
+        return "circumflex"
+    if accent_kc == "S(KC_QUOT)":
+        return "trema"
+    if accent_kc == "KC_QUOT":
+        return "cedilla" if letter_kc == "KC_C" else "acute"
+    return None
+
+
+def derive_key_info(actions):
+    """token -> [name, html description, optional tap label]"""
+    info = {}
+    for tok, (fn, args) in actions.items():
+        if fn == "undead" and args:
+            ch = UNDEAD_TAPS.get(args[0], args[0])
+            info[tok] = [tok, f"Undead <b>{ch}</b> — dead key + space (types immediately; the accent applies to the next letter)", ch]
+        elif fn == "accented_letter" and len(args) >= 2:
+            accent, letter = args[0], args[1]
+            base = letter.replace("KC_", "").lower()
+            atype = accent_type_for(accent, letter)
+            composed = COMPOSED.get(base, {}).get(atype, "")
+            accent_label = UNDEAD_TAPS.get(accent, accent)
+            desc = f"Accented <b>{composed}</b> — {accent_label} + {base}"
+            info[tok] = [tok, desc]
+        elif fn == "send_chord" and len(args) >= 2:
+            mods, key = args[0], args[1]
+            mod_key = {
+                "MOD_LCTL": "Ctrl", "MOD_LSFT": "Shift", "MOD_LALT": "Alt", "MOD_LGUI": "Win",
+                "MOD_RCTL": "RCtrl", "MOD_RSFT": "RShift", "MOD_RALT": "RAlt", "MOD_RGUI": "RWin",
+                "MOD_MEH": "Meh", "MOD_HYPR": "Hyper",
+            }
+            mod_names = [mod_key.get(x.strip(), x.strip()) for x in mods.split("|")]
+            key_label = KC_LABELS.get(key, key)
+            chord = "+".join(mod_names + [key_label])
+            info[tok] = [tok, f"Sends <b>{chord}</b>"]
+    for tok, desc in RM_DESC.items():
+        info.setdefault(tok, [tok, desc])
+    # short on-key labels for tokens whose names would overflow a keycap
+    for tok, tap in TAP_OVERRIDES.items():
+        if tok in info:
+            info[tok].append(tap)
+    # generic fallback for other custom tokens: humane word-split label
+    def humane(tok):
+        label = tok.replace("EDIT_", "").replace("APP_", "").replace("PREFIX_", "")
+        label = label.replace("_", " ").title()
+        label = label.replace("Selall", "Select All").replace("Devtools", "Devtools")
+        return label
+
+    for tok in list(info.keys()):
+        if len(info[tok]) < 3:
+            words = humane(tok).split()
+            if len(words) > 2:
+                mid = (len(words) + 1) // 2
+                tap = "<br>".join(words[:mid]) + "<br>" + " ".join(words[mid:])
+            else:
+                tap = "<br>".join(words)
+            info[tok].append(tap)
+    return info
+
+
+def derive_results(actions):
+    """custom keycode -> accented result char (for combos)."""
+    results = {}
+    for tok, (fn, args) in actions.items():
+        if fn == "accented_letter" and len(args) >= 2:
+            base = args[1].replace("KC_", "").lower()
+            atype = accent_type_for(args[0], args[1])
+            composed = COMPOSED.get(base, {}).get(atype)
+            if composed:
+                results[tok] = composed
+    return results
+
+
+# --- color resolution --------------------------------------------------------
+
+COLOR_MACRO_RE = re.compile(r"^\s*#define\s+(\w+)\s+([^\s,]+)\s*,\s*([^\s,]+)\s*,\s*([^\s,]+)", re.M)
+COLOR_ALIAS_RE = re.compile(r"^\s*#define\s+(\w+)\s+(\w+)\s*$", re.M)
+NUM_RE = re.compile(r"^(\d+|0x[0-9a-fA-F]+)$")
+
+
+def resolve_color_constants(custom_functions_c):
+    """Resolve `#define C_* r, g, b` macros (incl. aliases like `C_COMBO_ACUTE C_GOLD`)
+    into {name: (r, g, b)}."""
+    values = {}   # name -> (r, g, b)
+    aliases = {}  # name -> reference name
+    for m in COLOR_ALIAS_RE.finditer(custom_functions_c):
+        # alias lines: exactly two tokens with nothing else on the line
+        line = custom_functions_c[:m.start()].count("\n")
+        if m.start() and custom_functions_c[m.start() - 1] == "\n" and (m.end() == len(custom_functions_c) or custom_functions_c[m.end():m.end() + 60].lstrip().startswith("//")):
+            pass
+    # simpler: two passes — pure r,g,b lines, then aliases
+    for m in COLOR_MACRO_RE.finditer(custom_functions_c):
+        parts = (m.group(1), m.group(2), m.group(3))
+        nums = []
+        ok = True
+        for v in (m.group(2), m.group(3), m.group(4)):
+            if NUM_RE.match(v):
+                nums.append(int(v, 0))
+            else:
+                ok = False
+        if ok:
+            values[m.group(1)] = tuple(nums)
+    for m in re.finditer(r"^\s*#define\s+(\w+)\s+(\w+)\s*(//.*)?$", custom_functions_c, re.M):
+        name, ref = m.group(1), m.group(2)
+        if ref in values and name not in values:
+            values[name] = values[ref]
+    return values
+
+
+def parse_layer_colors(custom_functions_c, macros, layer_names):
+    """register_color_for_keycode(_NAV, KC_HOME, 0, 255, 0) calls ->
+    {layer: {token: spec}} with RGB_WILDCARD as 'default'. Spec carries
+    dark/light fill + border + text colors for both themes. Color values may be
+    numeric literals or C_* macro names."""
+    color_consts = resolve_color_constants(custom_functions_c)
+    scheme, wild = {}, {}
+    for m in re.finditer(r"register_color_for_keycode\((\w+),\s*([\w()]+),\s*([^)]+)\)", custom_functions_c):
+        layer = m.group(1).lstrip("_")
+        tok = expand(m.group(2), macros)
+        # resolve layer-enum names (GAMING -> DF(_GAMING) -> DF(2))
+        for idx, name in enumerate(layer_names):
+            tok = re.sub(rf"\b_{re.escape(name)}\b", str(idx), tok)
+        arg = m.group(3).replace(" ", "")
+        # arg is either "r, g, b" or a C_* color macro name
+        if re.match(r"^[0-9]+\s*,\s*[0-9]+\s*,\s*[0-9]+$", m.group(3)):
+            rgb = tuple(int(x) for x in re.split(r"\s*,\s*", m.group(3)))
+        else:
+            rgb = color_consts.get(arg)
+        if rgb is None:
+            continue
+        if tok == "RGB_WILDCARD":
+            wild[layer] = rgb
+        else:
+            scheme.setdefault(layer, {})[tok] = rgb
+
+    def spec(rgb):
+        r, g, b = rgb
+        return {
+            "fillD": "#%02x%02x%02x" % tuple(int(c * 0.22) for c in rgb),
+            "fillL": "#%02x%02x%02x" % tuple(int(c + (255 - c) * 0.75) for c in rgb),
+            "border": "#%02x%02x%02x" % rgb,
+            "textD": "#%02x%02x%02x" % tuple(int(c + (255 - c) * 0.6) for c in rgb),
+            "textL": "#%02x%02x%02x" % tuple(int(c * 0.4) for c in rgb),
+        }
+
+    out = {}
+    for layer, toks in scheme.items():
+        out[layer] = {t: spec(rgb) for t, rgb in toks.items()}
+        if layer in wild:
+            out[layer]["default"] = spec(wild[layer])
+    return out
+
+
+def parse_combos(combos_c, base_tokens, results, layer_name):
+    """combos.c -> [[keyA, keyB, resultChar, accentType, description], ...]"""
+    combos = []
+    arrays = dict(re.findall(r"const\s+uint16_t\s+PROGMEM\s+(\w+)\[\]\s*=\s*\{(.*?)\};", combos_c, re.S))
+    for _, arr_name, result in re.findall(r"\[(\w+)\]\s*=\s*COMBO\(\s*(\w+)\s*,\s*(\w+)\s*\)", combos_c):
+        keys = re.findall(r"\b(KC_\w+)\b", arrays.get(arr_name, ""))
+        if len(keys) < 2 or result not in results:
+            continue
+        idxs = []
+        for k in keys:
+            try:
+                idxs.append(base_tokens.index(k))
+            except ValueError:
+                idxs = None
+                break
+        if not idxs:
+            continue
+        ch = results[result]
+        atype = CHAR_TYPE.get(ch, "")
+        desc = f"{KC_LABELS.get(keys[0], keys[0])} + {KC_LABELS.get(keys[1], keys[1])} → {ch} ({atype})"
+        combos.append([keys[0], keys[1], ch, atype, desc])
+    return combos
+
+
+def parse_triggers(combos_c, combos, overrides=None):
+    """Trigger keys — automatic:
+      - comment-declared: `X = <accent> trigger/partner` lines in combos.c
+      - heuristic for undeclared accent types:
+          * >=2 chords of one accent type: the key that starts all of them
+          * exactly 1 chord: the consonant of a vowel+consonant pair
+    CLI overrides (--triggers) always win."""
+    VOWEL_KC = {"KC_A", "KC_E", "KC_I", "KC_O", "KC_U", "KC_Y"}
+    trig = {}
+    for m in re.finditer(r"([A-Z]{1,6}) = (\w+)[^\n]*(?:trigger|partner)", combos_c):
+        key, word = "KC_" + m.group(1), m.group(2)
+        if word in ACCENT_TYPES:
+            trig[key] = word
+    by_type = {}
+    for a, b, _ch, atype, _desc in combos:
+        by_type.setdefault(atype, []).append((a, b))
+    for atype, pairs in by_type.items():
+        if atype in trig.values():
+            continue
+        if len(pairs) >= 2:
+            firsts = {p[0] for p in pairs}
+            if len(firsts) == 1:
+                trig[next(iter(firsts))] = atype
+        elif len(pairs) == 1:
+            a, b = pairs[0]
+            vowel, other = (a, b) if a in VOWEL_KC else ((b, a) if b in VOWEL_KC else (None, None))
+            if vowel and other not in VOWEL_KC:
+                trig[other] = atype
+    for spec in overrides or []:
+        if ":" in spec:
+            key, word = spec.split(":", 1)
+            trig[key.strip()] = word.strip()
+    return trig
+
+
+# --- HTML template -----------------------------------------------------------
+
+TEMPLATE = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>__TITLE__</title>
+<style>
+  :root {
+    --bg: #14161a; --panel: #1d2026; --panel-border: #2a2f38;
+    --key: #262a32; --key-border: #3a3f4a;
+    --text: #e8eaf0; --dim: #6b7280; --accent: #7dd3fc;
+    --trans-bg: transparent; --trans-border: #31363f; --trans-text: #4a4f5a;
+    --tip-bg: #0d0f13; --tip-border: #3a4150;
+    --banner-bg: #241d33; --banner-border: #6b46a1; --banner-text: #e9d5ff;
+    --chip-bg: #1d2026; --tab-active-bg: #2b3442; --tab-active-text: #9ecbff; --tab-active-border: #3b5d85;
+    --dot-color: #3f4550; --hold-color: #aab2c0;
+    --u: 70px; /* 1u key size */
+  }
+  body.light {
+    --bg: #f2f4f7; --panel: #ffffff; --panel-border: #dde2e9;
+    --key: #e6e9ee; --key-border: #c4cad4;
+    --text: #1b1f24; --dim: #6b7280; --accent: #0e7490;
+    --trans-bg: #ffffff; --trans-border: #c9ced8; --trans-text: #9aa1ad;
+    --tip-bg: #ffffff; --tip-border: #d4d9e2;
+    --banner-bg: #f3ecfd; --banner-border: #a78bfa; --banner-text: #5b21b6;
+    --chip-bg: #ffffff; --tab-active-bg: #e3ecf7; --tab-active-text: #1d4ed8; --tab-active-border: #93b4e8;
+    --dot-color: #b7bdc8; --hold-color: #5c6470;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+         display: flex; flex-direction: column; align-items: center; }
+  header { display: flex; align-items: center; gap: 14px; padding: 10px 18px;
+           background: var(--panel); border-bottom: 1px solid var(--panel-border);
+           flex-wrap: wrap; width: 100%; justify-content: center; }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--dim); font-size: 12px; }
+  .tag { font-size: 10px; background: #3b2f4d; color: #c4b5fd; padding: 2px 8px;
+         border-radius: 999px; letter-spacing: .04em; }
+  body.light .tag { background: #ece4fb; color: #7c3aed; }
+  .theme-btn { border: 1px solid var(--panel-border); background: var(--panel); color: var(--text);
+               border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 14px; }
+  .theme-btn:hover { filter: brightness(1.15); }
+  .switch { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim);
+            padding: 4px 10px; border: 1px dashed #4a4358; border-radius: 6px; cursor: pointer; }
+  .switch.on { color: #e9d5ff; border-color: #7c5caf; background: #241d33; }
+  body.light .switch.on { color: #7c3aed; border-color: #c4a5f5; background: #f3ecfd; }
+  .switch .knob { width: 26px; height: 14px; border-radius: 999px; background: #333842;
+                  position: relative; transition: background .15s; }
+  body.light .switch .knob { background: #cbd3dd; }
+  .switch.on .knob { background: #8b5cf6; }
+  .switch .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px;
+                         border-radius: 50%; background: #cbd5e1; transition: left .15s; }
+  .switch.on .knob::after { left: 14px; }
+  main { padding: 20px; display: flex; gap: 20px; justify-content: flex-start; width: 100%; }
+  .sidebar { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; flex-shrink: 0; }
+  .tab { padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px;
+         color: var(--dim); border: 1px solid transparent; user-select: none; text-align: left;
+         font-weight: 600; letter-spacing: .02em; }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--tab-active-bg); color: var(--tab-active-text); border-color: var(--tab-active-border); }
+  .col { flex: 1; display: flex; flex-direction: column; align-items: center; }
+  .canvas { position: relative; }
+  .key { position: absolute; width: calc(var(--u) - 5px); height: calc(var(--u) - 5px);
+         border-radius: 8px; background: var(--key); border: 1px solid var(--key-border);
+         display: flex; flex-direction: column; align-items: center; justify-content: center;
+         font-size: 15px; cursor: default; transition: border-color .1s, filter .1s; }
+  .key:hover { border-color: #8b93a5; filter: brightness(1.15); z-index: 5; }
+  .key .shifted { font-size: 11px; color: var(--dim); line-height: 1; margin-bottom: 3px; font-weight: 500; }
+  .key .tap { font-weight: 600; line-height: 1.1; white-space: nowrap; text-align: center; }
+  .key .hold { font-size: 11px; color: var(--hold-color); margin-top: 3px; line-height: 1; }
+  .key.trans { background: var(--trans-bg); border-style: dashed; border-color: var(--trans-border); color: var(--trans-text); }
+  .key .dot { color: var(--dot-color); font-size: 18px; }
+  .key.mt { border-color: #8a6d3b; }
+  .key.mt .hold { color: #d4a94e; }
+  .key.lay { border-color: #4b5d7a; }
+  .key.lay .hold { color: #8fb3e8; }
+  .key.custom .tap { color: #ffd9a0; }
+  body.light .key.custom .tap { color: #b45309; }
+  .key.involved { outline: 2px solid var(--accent); outline-offset: 2px; z-index: 4; }
+  /* F15 combo mode: result glyph badges around the key edge + trigger ring */
+  .key .res-badge { position: absolute; width: 20px; height: 20px; border-radius: 50%;
+                    border: 2px solid; background: var(--key); font-size: 13px; font-weight: 700;
+                    display: flex; align-items: center; justify-content: center; line-height: 1;
+                    pointer-events: none; }
+  /* tooltip */
+  #tip { position: fixed; z-index: 50; max-width: 340px; background: var(--tip-bg); border: 1px solid var(--tip-border);
+         border-radius: 8px; padding: 8px 11px; font-size: 12px; pointer-events: none;
+         display: none; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+  #tip .raw { color: var(--accent); font-family: ui-monospace, monospace; font-size: 11px; margin-bottom: 3px; }
+  #tip .what { color: var(--text); line-height: 1.45; }
+  #tip .combo-list { margin-top: 4px; color: #d8c9f5; line-height: 1.5; }
+  body.light #tip .combo-list { color: #6d28d9; }
+  /* F15 banner + combo panel: under the keyboard (no layout jitter) */
+  #banner { display: none; width: 100%; max-width: 1220px; margin-top: 14px; padding: 8px 14px;
+            border-radius: 8px; background: var(--banner-bg); border: 1px solid var(--banner-border);
+            color: var(--banner-text); font-size: 13px; text-align: center; }
+  #banner.on { display: block; }
+  #banner b { color: #c4b5fd; }
+  body.light #banner b { color: #7c3aed; }
+  #comboPanel { display: none; width: 100%; max-width: 1220px; margin-top: 14px; padding: 14px 16px;
+                background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; }
+  #comboPanel.on { display: block; }
+  #comboPanel h3 { margin: 0 0 10px; font-size: 13px; color: var(--dim); font-weight: 600; letter-spacing: .03em; }
+  .chip-group { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .chip-group .gname { font-size: 11px; color: var(--dim); width: 78px; text-transform: lowercase; flex-shrink: 0; }
+  .chip { display: flex; align-items: center; gap: 6px; background: var(--chip-bg); border: 1.5px solid #555;
+          border-radius: 999px; padding: 3px 10px; font-size: 12.5px; cursor: default;
+          transition: filter .1s, opacity .15s; user-select: none; }
+  .chip .keys { font-weight: 600; letter-spacing: .04em; }
+  .chip .arrow { color: var(--dim); }
+  .chip .res { font-size: 14px; font-weight: 700; }
+  .chip.dim { opacity: .3; }
+  .chip.involve { filter: brightness(1.35); }
+  .chip:hover { filter: brightness(1.3); }
+  legend { display: block; width: 100%; max-width: 1220px; margin-top: 14px; padding: 10px 16px;
+           background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px;
+           font-size: 12px; color: var(--dim); line-height: 2; text-align: center; }
+  legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px;
+               margin: 0 6px -2px 12px; border: 1px solid #444; }
+  legend .sw:first-of-type { margin-left: 0; }
+  #note { margin-top: 8px; font-size: 11px; color: var(--dim); text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>__KEYMAP__ <span class="sub">__KEYBOARD__</span></h1>
+  <span class="tag">interactive keymap</span>
+  <div class="switch" id="f15"><span class="knob"></span><span>F15 held <i style="opacity:.6">(combo mode)</i></span></div>
+  <button class="theme-btn" id="themeBtn" title="toggle light/dark theme">🌙</button>
+</header>
+<main>
+  <div class="sidebar" id="tabs"></div>
+  <div class="col">
+    <div class="canvas" id="canvas"></div>
+    <div id="banner">Hold <b>F15</b> (either side) and press two marked keys → accented letter.
+      Each key shows the glyphs it produces (matching colors = same chord); ringed keys are the triggers.</div>
+    <div id="comboPanel">
+      <h3>Accent combos — hold F15 + chord</h3>
+      <div id="chipGroups"></div>
+    </div>
+    <legend>
+      <span class="sw" style="background:#2f8f52"></span>Home/End <span class="sw" style="background:#b0424a"></span>PgUp/PgDn
+      <span class="sw" style="background:#2fa3ad"></span>arrows <span class="sw" style="background:#b39a2f"></span>mods
+      <span class="sw" style="background:#b3702f"></span>Del/ScrLk <span class="sw" style="background:#3b6fb0"></span>default layer tint
+      <span class="sw" style="background:#8a6d3b;border-color:#8a6d3b"></span>mod-tap <span class="sw" style="background:#4b5d7a;border-color:#4b5d7a"></span>layer key
+      <span class="sw" style="background:#ffd9a0;border-color:#ffd9a0"></span>custom keycode <span class="sw" style="border-style:dashed"></span>transparent
+    </legend>
+    <div id="note">Colors mirror the keyboard's RGB indicator scheme (custom_functions.c). Hover any key for details.
+      Generated by tools/keymap-html from the live keymap sources.</div>
+  </div>
+</main>
+<div id="tip"></div>
+<script>
+const DATA = __DATA__;
+
+const LAYER_NAMES = DATA.layerNames;
+const KC = DATA.kcLabels;
+const SHIFTED = DATA.shifted;
+const MODS = DATA.modLabels;
+const LAYER_KEYS = {};
+LAYER_NAMES.forEach((n, i) => LAYER_KEYS[i] = n);
+const KEY_INFO = DATA.keyInfo;
+const LAYER_COLORS = DATA.layerColors;
+const FKEY_COLORS = LAYER_COLORS[DATA.fkeyLayer] || null;
+
+// combos: [keyA, keyB, result, accentType, description] — from combos.c (F15-gated)
+const COMBOS = DATA.combos;
+const TRIGGERS = DATA.triggers;
+const ACCENT_COLORS = {grave:'#b3702f', acute:'#d4a017', circumflex:'#2fa3ad', trema:'#b02f9f', cedilla:'#2f8f52'};
+const ACCENT_GROUPS = ['grave', 'acute', 'circumflex', 'trema', 'cedilla'];
+
+// ---- parse helpers ----
+function parseToken(tok) {
+  const mt = tok.match(/^MT\((MOD_\w+),\s*(\w+)\)$/);
+  if (mt) return {tap: KC[mt[2]] ?? mt[2], hold: MODS[mt[1]] ?? mt[1], kind: 'mt', tapTok: mt[2]};
+  const mo = tok.match(/^MO\((\d+)\)$/);
+  if (mo) return {tap: LAYER_KEYS[mo[1]], kind: 'lay', hold: 'hold', tapTok: tok};
+  const df = tok.match(/^DF\((\d+)\)$/);
+  if (df) return {tap: LAYER_KEYS[df[1]], kind: 'lay', hold: 'default', tapTok: tok};
+  if (tok === 'KC_TRNS') return {tap: null, kind: 'trans', tapTok: tok};
+  if (tok === 'KC_NO') return {tap: '—', kind: 'plain', tapTok: tok};
+  const info = KEY_INFO[tok];
+  if (info && info[2]) return {tap: info[2], kind: 'custom', tapTok: tok};  // e.g. dead keys show their glyph
+  return {tap: KC[tok] ?? tok.replace(/_/g, ' '), kind: 'plain', tapTok: tok};
+}
+// one technical name, one human meaning — never both in the same line
+function explain(tok) {
+  const info = KEY_INFO[tok];
+  if (info) return {raw: info[0], what: info[1]};
+  const mt = tok.match(/^MT\((MOD_\w+),\s*(\w+)\)$/);
+  if (mt) return {raw: tok, what: `Mod-tap — hold: <b>${MODS[mt[1]]}</b> · tap: <b>${KC[mt[2]] ?? mt[2]}</b>`};
+  const mo = tok.match(/^MO\((\d+)\)$/);
+  if (mo) return {raw: tok, what: `Momentary — hold for layer <b>${LAYER_KEYS[mo[1]]}</b>`};
+  const df = tok.match(/^DF\((\d+)\)$/);
+  if (df) return {raw: tok, what: `Set default layer: <b>${LAYER_KEYS[df[1]]}</b>`};
+  if (tok === 'KC_TRNS') return {raw: tok, what: 'Transparent — passes through to the layer below'};
+  const label = KC[tok] ?? tok.replace(/_/g, ' ');
+  if (tok.startsWith('KC_')) return {raw: tok, what: `<b>${label}</b>`};
+  return {raw: tok, what: `<b>${label}</b> (custom keycode)`};
+}
+
+// ---- build ----
+const UNIT = 70, PAD = 48;
+const canvas = document.getElementById('canvas');
+const tabs = document.getElementById('tabs');
+const keys = [];          // per layer: array of {el, tok}
+let activeLayer = 0, comboMode = false;
+
+DATA.layers.forEach((layer, li) => {
+  keys.push(layer.map((tok, ki) => {
+    const p = DATA.positions[ki];
+    const el = document.createElement('div');
+    el.className = 'key';
+    el.style.left = (PAD + p.x * UNIT) + 'px';
+    el.style.top = (PAD + p.y * UNIT) + 'px';
+    const info = parseToken(tok);
+    if (info.kind === 'trans') {
+      el.classList.add('trans');
+      el.innerHTML = '<span class="dot">·</span>';
+    } else {
+      if (info.kind === 'mt') el.classList.add('mt');
+      if (info.kind === 'lay') el.classList.add('lay');
+      if (info.kind === 'custom') el.classList.add('custom');
+      let face = '';
+      const shifted = SHIFTED[info.tapTok ?? tok];
+      if (shifted) face += `<span class="shifted">${shifted}</span>`;
+      face += `<span class="tap">${info.tap}</span>`;
+      if (info.hold) face += `<span class="hold">${info.hold}</span>`;
+      el.innerHTML = face;
+    }
+    const obj = {el, tok, li, ki};
+    el.addEventListener('mouseenter', e => { showTip(e, li, ki); if (comboMode && li === 0) highlightChips(tok); });
+    el.addEventListener('mouseleave', () => { hideTip(); clearChips(); });
+    canvas.appendChild(el);
+    return obj;
+  }));
+});
+canvas.style.width = (2 * PAD + 16 * UNIT) + 'px';
+canvas.style.height = (2 * PAD + 8 * UNIT) + 'px';
+
+LAYER_NAMES.forEach((name, i) => {
+  const t = document.createElement('div');
+  t.className = 'tab' + (i === 0 ? ' active' : '');
+  t.textContent = name;
+  t.onclick = () => selectLayer(i);
+  tabs.appendChild(t);
+});
+
+function selectLayer(li) {
+  activeLayer = li;
+  save('layer', li);
+  [...tabs.children].forEach((t, i) => t.classList.toggle('active', i === li));
+  keys.forEach((layer, l) => layer.forEach(k => { k.el.style.display = l === li ? '' : 'none'; }));
+  paint();
+  if (comboMode && li === 0) drawComboBadges(); else clearComboBadges();
+}
+function schemeFor(layerIdx, tok) {
+  const map = LAYER_COLORS[LAYER_NAMES[layerIdx]];
+  if (!map) return null;
+  if (tok in map) return map[tok];
+  if (tok === 'KC_TRNS' || tok === 'KC_NO') return null;
+  // F-keys inherit the canonical colors registered on the F-key layer
+  if (tok.startsWith('KC_F') && FKEY_COLORS && tok in FKEY_COLORS) return FKEY_COLORS[tok];
+  return map.default ?? null;
+}
+function paint() {
+  const light = document.body.classList.contains('light');
+  keys[activeLayer].forEach(k => {
+    if (k.tok === 'KC_TRNS') return;
+    const sc = schemeFor(activeLayer, k.tok);
+    if (sc) {
+      k.el.style.background = light ? sc.fillL : sc.fillD;
+      k.el.style.borderColor = sc.border;
+      k.el.style.color = light ? sc.textL : sc.textD;
+    } else {
+      k.el.style.background = ''; k.el.style.borderColor = ''; k.el.style.color = '';
+    }
+  });
+}
+// F15 mode: result glyphs around each participating key, colored by accent type;
+// trigger keys get an inner ring in their accent color.
+const TYPE_ORDER = ['grave', 'acute', 'circumflex', 'trema', 'cedilla'];
+const KEY_RESULTS = {};
+COMBOS.forEach(([a, b, res, type]) => {
+  (KEY_RESULTS[a] = KEY_RESULTS[a] || []).push({res, type});
+  (KEY_RESULTS[b] = KEY_RESULTS[b] || []).push({res, type});
+});
+Object.values(KEY_RESULTS).forEach(l => l.sort((x, y) => TYPE_ORDER.indexOf(x.type) - TYPE_ORDER.indexOf(y.type)));
+const BADGE_POS = {
+  1: ['top-left'],
+  2: ['top-left', 'top-right'],
+  3: ['top-left', 'top-right', 'bottom-right'],
+  4: ['top-left', 'top-right', 'bottom-right', 'bottom-left'],
+};
+const POS_CSS = {
+  'top-left': 'top:4px; left:4px;',
+  'top-right': 'top:4px; right:4px;',
+  'bottom-right': 'bottom:4px; right:4px;',
+  'bottom-left': 'bottom:4px; left:4px;',
+};
+function drawComboBadges() {
+  clearComboBadges();
+  keys[0].forEach(k => {
+    const results = KEY_RESULTS[k.tok];
+    if (!results) return;
+    const pos = BADGE_POS[Math.min(results.length, 4)];
+    results.forEach((r, i) => {
+      const b = document.createElement('span');
+      b.className = 'res-badge';
+      b.style.borderColor = ACCENT_COLORS[r.type];
+      b.style.color = ACCENT_COLORS[r.type];
+      b.style.cssText += POS_CSS[pos[i]];
+      b.textContent = r.res;
+      k.el.appendChild(b);
+    });
+    if (TRIGGERS[k.tok]) {
+      k.el.style.boxShadow = 'inset 0 0 0 2.5px ' + ACCENT_COLORS[TRIGGERS[k.tok]];
+    }
+  });
+}
+function clearComboBadges() {
+  keys.forEach(layer => layer.forEach(k => {
+    k.el.querySelectorAll('.res-badge').forEach(b => b.remove());
+    k.el.style.boxShadow = '';
+  }));
+}
+
+// ---- combo chip panel (under the keyboard) ----
+const panel = document.getElementById('comboPanel');
+const chipGroups = document.getElementById('chipGroups');
+const chips = [];
+ACCENT_GROUPS.forEach(group => {
+  const g = document.createElement('div');
+  g.className = 'chip-group';
+  g.innerHTML = `<span class="gname">${group}</span>`;
+  COMBOS.forEach(([a, b, res, type, desc]) => {
+    if (type !== group) return;
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.style.borderColor = ACCENT_COLORS[type];
+    chip.title = desc;
+    chip.innerHTML = `<span class="keys">${KC[a]}${KC[b]}</span><span class="arrow">→</span><span class="res">${res}</span>`;
+    chip.addEventListener('mouseenter', () => markKeys(a, b));
+    chip.addEventListener('mouseleave', unmarkKeys);
+    chips.push({el: chip, a, b, type});
+    g.appendChild(chip);
+  });
+  chipGroups.appendChild(g);
+});
+function markKeys(a, b) {
+  keys[0].forEach(k => {
+    if (k.tok === a || k.tok === b) k.el.classList.add('involved');
+  });
+}
+function unmarkKeys() {
+  keys.forEach(layer => layer.forEach(k => k.el.classList.remove('involved')));
+}
+function highlightChips(tok) {
+  chips.forEach(c => {
+    c.el.classList.toggle('involve', c.a === tok || c.b === tok);
+    c.el.classList.toggle('dim', c.a !== tok && c.b !== tok);
+  });
+}
+function clearChips() {
+  chips.forEach(c => c.el.classList.remove('involve', 'dim'));
+}
+
+// ---- tooltip ----
+const tip = document.getElementById('tip');
+function showTip(e, li, ki) {
+  const k = keys[li][ki];
+  const ex = explain(k.tok);
+  tip.innerHTML = `<div class="raw">${ex.raw} · ${LAYER_NAMES[li]}</div>
+    <div class="what">${ex.what}</div>`;
+  if (comboMode && li === 0) {
+    const roles = COMBOS.filter(c => c[0] === k.tok || c[1] === k.tok)
+                        .map(c => `${KC[c[0]]}+${KC[c[1]]} → ${c[2]}`)
+                        .join(' · ');
+    if (roles) tip.innerHTML += `<div class="combo-list">Combo roles (hold F15): ${roles}</div>`;
+  }
+  tip.style.display = 'block';
+  const pad = 14;
+  let x = e.clientX + pad, y = e.clientY + pad;
+  const r = tip.getBoundingClientRect();
+  if (x + r.width > innerWidth) x = e.clientX - r.width - pad;
+  if (y + r.height > innerHeight) y = e.clientY - r.height - pad;
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+function hideTip() { tip.style.display = 'none'; }
+
+// ---- F15 toggle ----
+const f15 = document.getElementById('f15');
+f15.onclick = () => {
+  setComboMode(!comboMode);
+};
+function setComboMode(on) {
+  comboMode = on;
+  f15.classList.toggle('on', on);
+  document.getElementById('banner').classList.toggle('on', on);
+  panel.classList.toggle('on', on);
+  clearChips();
+  save('combo', on);
+  if (on && activeLayer === 0) drawComboBadges(); else clearComboBadges();
+}
+
+// ---- theme toggle ----
+const themeBtn = document.getElementById('themeBtn');
+function setTheme(light) {
+  document.body.classList.toggle('light', light);
+  themeBtn.textContent = light ? '☀️' : '🌙';
+  save('theme', light);
+  if (typeof paint === 'function') paint();
+}
+themeBtn.onclick = () => setTheme(!document.body.classList.contains('light'));
+
+// ---- persistence (layer / F15 / theme) through localStorage ----
+const STORE_KEY = 'keymap-html:' + DATA.keyboard + ':' + DATA.keymap;
+function loadState() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { return {}; }
+}
+function save(k, v) {
+  try {
+    const s = loadState();
+    s[k] = v;
+    localStorage.setItem(STORE_KEY, JSON.stringify(s));
+  } catch (e) { /* storage unavailable: ignore */ }
+}
+
+const state = loadState();
+document.body.classList.toggle('light', !!state.theme);
+themeBtn.textContent = state.theme ? '☀️' : '🌙';
+const startLayer = (typeof state.layer === 'number' && state.layer >= 0 && state.layer < LAYER_NAMES.length)
+  ? state.layer : 0;
+selectLayer(startLayer);
+if (state.combo) setComboMode(true);
+</script>
+</body>
+</html>
+"""
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("-kb", "--keyboard", required=True, help="keyboard, e.g. splitkb/halcyon/elora")
+    ap.add_argument("-km", "--keymap", required=True, help="keymap name, e.g. colemakdh_hlc")
+    ap.add_argument("-o", "--output", help="output HTML file (default: <userspace>/viz/<kb>/<km>/keymap.html)")
+    ap.add_argument("--layout", help="layout macro name (default: whatever the keymap.c uses)")
+    ap.add_argument("--halcyon-modules", action="store_true",
+                    help="keep the halcyon-module slot row even if no HLC_* modules are detected")
+    ap.add_argument("--triggers", nargs="*", metavar="KC_X:accent",
+                    help="override combo trigger keys, e.g. --triggers KC_H:circumflex KC_M:trema KC_N:acute")
+    args = ap.parse_args()
+
+    roots = qmk_roots()
+    userspace_root = roots[0] if (roots[0] / "keyboards").is_dir() else (roots[1] if len(roots) > 1 else roots[0])
+    keymap_c_path = find_keymap_c(args.keyboard, args.keymap, roots)
+    kb = resolve_kb(args.keyboard, roots)
+    keymap_dir = keymap_c_path.parent
+
+    keymap_c = keymap_c_path.read_text(errors="replace")
+    layer_names = extract_layer_names(keymap_c)
+    if not layer_names:
+        layer_names = [f"L{i}" for i in range(6)]
+    macros = load_object_macros(keymap_dir, keymap_c)
+    expanded = expand(keymap_c, macros)
+    for idx, name in enumerate(layer_names):
+        expanded = re.sub(rf"\b_{re.escape(name)}\b", str(idx), expanded)
+
+    if not shutil.which("qmk"):
+        sys.exit("qmk CLI not found on PATH — required to convert keymap.c to keymap.json")
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="keymap-html-"))
+    (tmp / "keymap_expanded.c").write_text(expanded)
+    keymap_json_path = tmp / "keymap.json"
+    run(["qmk", "c2json", "--no-cpp", "-kb", kb, "-km", args.keymap,
+         str(tmp / "keymap_expanded.c"), "-o", str(keymap_json_path)])
+
+    keymap_json = json.loads(keymap_json_path.read_text())
+    layout_name = args.layout or keymap_json.get("layout")
+    if not layout_name:
+        sys.exit("could not determine the layout macro used by the keymap")
+    layout_json_path, layout_name = find_layout_json(layout_name, kb, roots)
+    layout_entries = json.loads(Path(layout_json_path).read_text())["layouts"][layout_name]["layout"]
+
+    # --- halcyon module row (same auto-detection as keymap-viz) -------------
+    modules = halcyon_modules_present(keymap_dir)
+    keep_module_row = args.halcyon_modules or bool(modules)
+    mod_indices = module_slot_indices(layout_entries) if not keep_module_row else []
+    if mod_indices:
+        keep = [i for i in range(len(layout_entries)) if i not in set(mod_indices)]
+        layers = [[t for i, t in enumerate(layer) if i in keep] for layer in keymap_json["layers"]]
+        positions = [layout_entries[i] for i in keep]
+        print(f"module row: hidden ({len(mod_indices)} keys, no HLC modules detected — use --halcyon-modules to keep)")
+    else:
+        layers = keymap_json["layers"]
+        positions = layout_entries
+        if keep_module_row:
+            print(f"module row: shown ({'--halcyon-modules' if args.halcyon_modules else 'HLC modules: ' + ', '.join(modules)})")
+
+    base_tokens = layers[0]
+
+    # --- derive annotations from the sources --------------------------------
+    custom_functions = (keymap_dir / "custom_functions.c")
+    key_info, results, layer_colors = {}, {}, {}
+    if custom_functions.is_file():
+        cf = custom_functions.read_text(errors="replace")
+        actions = parse_key_actions(cf)
+        key_info = derive_key_info(actions)
+        results = derive_results(actions)
+        layer_colors = parse_layer_colors(cf, macros, layer_names)
+
+    combos = []
+    combos_c = keymap_dir / "combos.c"
+    if combos_c.is_file():
+        combos = parse_combos(combos_c.read_text(errors="replace"), base_tokens, results, layer_names[0])
+    triggers = parse_triggers(combos_c.read_text(errors="replace") if combos_c.is_file() else "", combos, args.triggers)
+
+    data = {
+        "layerNames": layer_names,
+        "keyboard": kb,
+        "keymap": args.keymap,
+        "fkeyLayer": next((n for n in ("FKEYS", "FUNCTION") if n in layer_names), ""),
+        "layers": layers,
+        "positions": positions,
+        "keyInfo": key_info,
+        "layerColors": layer_colors,
+        "combos": combos,
+        "triggers": triggers,
+        "kcLabels": KC_LABELS,
+        "modLabels": MOD_LABELS,
+        "shifted": {
+            "KC_1": "!", "KC_2": "@", "KC_3": "#", "KC_4": "$", "KC_5": "%", "KC_6": "^",
+            "KC_7": "&", "KC_8": "*", "KC_9": "(", "KC_0": ")", "KC_MINUS": "_", "KC_EQL": "+",
+            "KC_LBRC": "{", "KC_RBRC": "}", "KC_GRV": "~", "KC_SCLN": ":", "KC_QUOTE": '"',
+            "KC_COMM": "<", "KC_DOT": ">", "KC_SLSH": "?", "KC_NUBS": "|", "KC_NUHS": "~",
+            "UD_GRV": "~",
+        },
+    }
+
+    outfile = Path(args.output) if args.output else userspace_root / "viz" / kb / args.keymap / "keymap.html"
+    outfile.parent.mkdir(parents=True, exist_ok=True)
+    html = TEMPLATE.replace("__DATA__", json.dumps(data)).replace("__TITLE__", f"{args.keymap} — {kb}").replace(
+        "__KEYMAP__", args.keymap).replace("__KEYBOARD__", kb)
+    outfile.write_text(html, encoding="utf-8")
+
+    print(f"keyboard : {kb}")
+    print(f"keymap   : {args.keymap} ({keymap_c_path})")
+    print(f"layout   : {layout_name} ({layout_json_path})")
+    print(f"layers   : {', '.join(layer_names)}")
+    if combos:
+        print(f"combos   : {len(combos)} accent chords (drawn on {layer_names[0]}, require F15)")
+    if triggers:
+        print(f"triggers : {', '.join(f'{k}={v}' for k, v in triggers.items())}")
+    print(f"html     : {outfile}")
+
+
+if __name__ == "__main__":
+    main()

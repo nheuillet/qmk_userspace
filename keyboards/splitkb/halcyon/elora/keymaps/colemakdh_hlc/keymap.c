@@ -24,7 +24,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
  * |  LCtrl |   Z  |   X  |   C  |Num/D |   V  | [ {  |  `~  |  | +  = |  ] } |   K  |   H  | ,  < | . >  | /  ? |  \  |  |
  * `----------------------+------+------+------+------+------|  |------+------+------+------+------+----------------------'
- *                        |Adjust| LGUI | LAlt | Space| Nav  |  |F-Keys| Space| Enter| F15  | F16  |
+ *                        |Adjust| LGUI | LAlt | Space| Nav  |  | EDIT | Space| Enter| F15  | F16  |
  *                        |      |      | .... |      |      |  |      |      |      |      |      |
  *                        `----------------------------------'  `----------------------------------'
  * ,-----------------------------------.                                              ,-----------------------------------.
@@ -36,7 +36,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     KC_TAB , KC_Q ,  KC_W   ,  KC_F  ,   KC_P ,   KC_B ,                                        KC_J ,   KC_L ,  KC_U ,   KC_Y ,KC_SCLN, KC_BSPC,
     KC_LSFT , KC_A,  KC_R  ,  KC_S ,   KC_T,   KC_G ,                                        KC_M ,  KC_N ,  KC_E,   KC_I, KC_O , CTL_QUOT,
     KC_LCTL , KC_Z ,  KC_X   ,  KC_C  ,  KC_D  ,   KC_V , KC_LBRC,UD_GRV ,   KC_EQL   , KC_RBRC, KC_K ,   KC_H ,KC_COMM, KC_DOT ,KC_SLSH, KC_NUBS,
-                                ADJUST, KC_LGUI, KC_LALT , KC_SPC , NAV   ,    FKEYS   , KC_SPC ,KC_ENT, KC_F15 , KC_F16,
+                                ADJUST, KC_LGUI, KC_LALT , KC_SPC , NAV   ,    EDIT    , KC_SPC ,KC_ENT, KC_F15 , KC_F16,
     KC_MUTE, KC_NO,  KC_NO, KC_NO, KC_NO,                                                                KC_MUTE, KC_NO, KC_NO, KC_NO, KC_NO
  ),
 
@@ -52,7 +52,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  * |--------+------+------+------+------+------+-------------.  ,-------------+------+------+------+------+------+--------|
  * | LShift |   Z  |   X  |   C  |   V  |   B  | [ {  |  `~  |  | +  = |  ] } |   N  |   M  | ,  < | . >  | /  ? |  \  |  |
  * `----------------------+------+------+------+------+------|  |------+------+------+------+------+----------------------'
- *                        |Adjust| LGUI | F14  | Space| Nav  |  |F-Keys| Space| Enter| F15  | F16  |
+ *                        |Adjust| LGUI | F14  | Space| Nav  |  | EDIT | Space| Enter| F15  | F16  |
  *                        |      |      | Enter|      |      |  |      |      |      |      |      |
  *                        `----------------------------------'  `----------------------------------'
  * ,-----------------------------------.                                              ,-----------------------------------.
@@ -64,7 +64,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
      KC_TAB  , KC_Q ,  KC_W   ,  KC_E  ,   KC_R  ,   KC_T ,                                        KC_Y,   KC_U  ,  KC_I ,   KC_O ,   KC_P  , KC_BSPC,
      KC_LSFT , KC_A ,KC_S ,  KC_D,   KC_F,   KC_G ,                                        KC_H,   KC_J, KC_K, KC_L ,KC_SCLN,CTL_QUOT,
      CTL_ESC , KC_Z ,  KC_X   ,  KC_C  ,   KC_V  ,   KC_B , KC_LBRC, UD_GRV,  KC_EQL,KC_RBRC,   KC_N ,  KC_M , KC_COMM, KC_DOT  ,KC_SLSH, KC_NUBS,
-                                ADJUST, KC_LGUI, KC_LALT  , KC_SPC ,  NAV   , FKEYS  , KC_SPC ,KC_ENT, KC_F15 ,  KC_F16,
+                                ADJUST, KC_LGUI, KC_LALT  , KC_SPC ,  NAV   , EDIT    , KC_SPC ,KC_ENT, KC_F15 ,  KC_F16,
      KC_MUTE,  KC_NO,    KC_NO,   KC_NO,    KC_NO,                                                                KC_MUTE, KC_NO,    KC_NO, KC_NO   , KC_NO
     ),
 
@@ -80,7 +80,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
      * |--------+------+------+------+------+------+-------------.  ,-------------+------+------+------+------+------+--------|
      * |  LCtrl |   Z  |   X  |   C  |Num/D |   V  | [ {  |  `~  |  | +  = |  ] } |   K  |   H  | ,  < | . >  | /  ? |  \  |  |
      * `----------------------+------+------+------+------+------|  |------+------+------+------+------+----------------------'
-     *                        |Adjust| LGUI | LALT | Space| Nav  |  |F-Keys| Space| Enter| F15  | F16  |
+     *                        |Adjust| LGUI | LALT | Space| Nav  |  | EDIT | Space| Enter| F15  | F16  |
      *                        |      |      | .... |      |      |  |      |      |      |      |      |
      *                        `----------------------------------'  `----------------------------------'
      * ,-----------------------------------.                                              ,-----------------------------------.
@@ -92,7 +92,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         KC_TAB  , KC_Q ,  KC_W   ,  KC_F  ,   KC_P ,   KC_B ,                                        KC_J ,   KC_L ,  KC_U ,   KC_Y ,KC_SCLN, KC_BSPC,
         KC_LSFT , KC_A ,  KC_R   ,  KC_S  ,   KC_T ,   KC_G ,                                        KC_M ,  KC_N  ,  KC_E ,   KC_I , KC_O  , CTL_QUOT,
         KC_LCTL , KC_Z ,  KC_X   ,  KC_C  ,  KC_D  ,   KC_V , KC_LBRC,UD_GRV ,   KC_EQL   , KC_RBRC, KC_K ,   KC_H ,KC_COMM, KC_DOT ,KC_SLSH, KC_NUBS,
-                                    ADJUST, KC_LGUI, KC_LALT, KC_SPC , NAV   ,    FKEYS   , KC_SPC ,KC_ENT, KC_F15 , KC_F16,
+                                    ADJUST, KC_LGUI, KC_LALT, KC_SPC , NAV   ,    EDIT    , KC_SPC ,KC_ENT, KC_F15 , KC_F16,
         KC_MUTE, KC_NO,  KC_NO, KC_NO, KC_NO,                                                                KC_MUTE, KC_NO, KC_NO, KC_NO, KC_NO
      ),
 
@@ -125,29 +125,28 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     ),
 
 /*
- * Function Layer: Function keys
+ * Edit Layer: editing, media & app prefixes (hold with right thumb)
  *
  * ,-------------------------------------------.                              ,-------------------------------------------.
- * |        |      |      |      |      |      |                              |      |      |      |      |      |        |
- * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
- * |        |  F1  |  F2  |  F3  |  F4  |      |                              |      |      |      |      |      |        |
- * |--------+------+------+------+------+------|                              |------+------+------+------+------+--------|
- * |        |  F5  |  F6  |  F7  |  F8  |      |                              |      | Shift| Ctrl |  Alt |  GUI |        |
- * |--------+------+------+------+------+------+-------------.  ,-------------+------+------+------+------+------+--------|
- * |        |  F9  |  F10 |  F11 |  F12 |      |      |      |  |      |      |      |      |      |      |      |        |
+ * |        |      |      |      |      |      |                              |        |      |      |      |      |        |
+ * |--------+------+------+------+------+------|                              |--------+------+------+------+------+--------|
+ * |        |      |      | Find |      |      |                              |        | Vol↓ |      | Vol↑ |      |        |
+ * |--------+------+------+------+------+------|                              |--------+------+------+------+------+--------|
+ * |        | SelA | Redo | CtrlA| CtrlE|      |                              |  Tmux  | Prev | Play | Next | Mute | GEN3  |
+ * |--------+------+------+------+------+------+-------------.  ,-------------+--------+------+------+------+------+--------|
+ * |        | Undo | Cut  | Copy | Paste|      |      |      |  |      |      |   Del  |  Pal | DevT | GEN1 | GEN2 |        |
  * `----------------------+------+------+------+------+------|  |------+------+------+------+------+----------------------'
- *                        |      |      |      |      |      |  |      |      |      |      |      |
  *                        |      |      |      |      |      |  |      |      |      |      |      |
  *                        `----------------------------------'  `----------------------------------'
  * ,-----------------------------------.                                              ,-----------------------------------.
  * |      |      |       |      |      |                                              |      |      |       |      |      |
  * `-----------------------------------'                                              `-----------------------------------'
  */
-    [_FKEYS] = LAYOUT_elora_hlc(
-      _______,  KC_F13,  KC_F14,  KC_F15,  KC_F16, _______,                                     _______, _______, _______, _______, _______, _______,
-      _______,  KC_F9 ,  KC_F10,  KC_F11,  KC_F12, _______,                                     _______, _______, _______, _______, _______, _______,
-      _______,  KC_F5 ,  KC_F6 ,  KC_F7 ,  KC_F8 , _______,                                     _______, KC_RSFT, KC_RCTL, KC_LALT, KC_RGUI, _______,
-      _______,  KC_F1 ,  KC_F2 ,  KC_F3 ,  KC_F4 , _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
+    [_EDIT] = LAYOUT_elora_hlc(
+      _______, _______, _______, _______, _______, _______,                                     _______, _______, _______, _______, _______, _______,
+      _______, _______, _______, EDIT_FIND, _______, _______,                                   _______, KC_VOLD, _______, KC_VOLU, _______, _______,
+      _______, EDIT_SELALL, EDIT_REDO, EDIT_LINE_START, EDIT_LINE_END, _______,                 PREFIX_TMUX, KC_MPRV, KC_MPLY, KC_MNXT, KC_MUTE, PREFIX_GEN3,
+      _______, EDIT_UNDO, EDIT_CUT, EDIT_COPY, _______, EDIT_PASTE, _______, _______, _______, _______, _______, KC_DEL, APP_PALETTE, APP_DEVTOOLS, PREFIX_GEN1, PREFIX_GEN2,
                                  _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
      _______, _______,  _______, _______, _______,                                                       _______, _______, _______, _______, _______
     ),
@@ -173,8 +172,8 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  */
     [_ADJUST] = LAYOUT_elora_hlc(
       _______,  BASE  , GAMING , QWERTY , _______, _______,                                    _______, _______, _______, _______, _______, _______,
-      _______, _______, RGB_MODE_TOGGLE, _______, _______, _______,                                    _______, KC_VOLU, KC_MUTE, KC_VOLD, _______, _______,
-      _______, RM_TOGG, RM_VALU, _______, RM_SATU, _______,                                    _______, KC_MRWD, KC_MPLY, KC_MFFD, _______, _______,
+      _______, _______, RGB_MODE_TOGGLE, _______, _______, _______,                                    _______, _______, _______, _______, _______, _______,
+      _______, RM_TOGG, RM_VALU, _______, RM_SATU, _______,                                    _______, _______, _______, _______, _______, _______,
       _______, RM_NEXT, RM_VALD, _______, RM_SATD, _______,_______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
                                  _______, _______, _______,_______, _______, _______, _______, _______, _______, _______,
      _______, _______,  _______, _______, _______,                                                      _______, _______, _______, _______, _______
@@ -218,6 +217,5 @@ const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][NUM_DIRECTIONS] = {
     [3] = { ENCODER_CCW_CW(_______, _______),  ENCODER_CCW_CW(_______, _______),  ENCODER_CCW_CW(_______, _______),  ENCODER_CCW_CW(_______, _______)  },
     [4] = { ENCODER_CCW_CW(_______, _______),  ENCODER_CCW_CW(_______, _______),  ENCODER_CCW_CW(_______, _______),  ENCODER_CCW_CW(_______, _______)  },
     [5] = { ENCODER_CCW_CW(_______, _______),  ENCODER_CCW_CW(_______, _______),  ENCODER_CCW_CW(_______, _______),  ENCODER_CCW_CW(_______, _______)  },
-    [6] = { ENCODER_CCW_CW(_______, _______),  ENCODER_CCW_CW(_______, _______),  ENCODER_CCW_CW(_______, _______),  ENCODER_CCW_CW(_______, _______)  },
 };
 #endif

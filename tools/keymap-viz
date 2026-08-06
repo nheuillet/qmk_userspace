@@ -1,0 +1,735 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "keymap-drawer>=0.23",
+#     "cairosvg",
+# ]
+# ///
+"""Render a QMK keymap as SVG/PNG with keymap-drawer.
+
+Self-contained uv script: `uv run` (or direct execution) fetches keymap-drawer
+and cairosvg into an isolated environment automatically. Reads only — never
+writes into the keymap's directory. Output goes to <userspace>/viz/<keyboard>/<keymap>/
+by default.
+
+Features:
+  - resolves custom macros (ESC_ALT → MT(...)), layer enums, userspace layouts
+  - drops the halcyon-module slot row automatically when no HLC_* module
+    defines are found in the keymap (--halcyon-modules to force-keep it)
+  - shows shifted legends (1 → 1!) and F15-gated accent combos
+  - colors keys by type and by the keyboard's RGB layer scheme
+
+Only external requirement: the `qmk` CLI with your QMK_HOME configured
+(used to convert keymap.c into QMK keymap.json).
+
+Usage:
+  ./tools/keymap-viz -kb <keyboard> -km <keymap> [-o <outdir>] [--no-png]
+                     [--layout LAYOUT_foo] [--halcyon-modules]
+
+Example:
+  ./tools/keymap-viz -kb splitkb/halcyon/elora -km colemakdh_hlc
+"""
+
+import argparse
+import configparser
+import io
+import json
+import os
+import pathlib
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import urllib.request
+from pathlib import Path
+
+MACRO_RE = re.compile(r"^\s*#define\s+([A-Za-z_]\w*)\s+(.+)$", re.M)
+DESIGNATOR_RE = re.compile(r"\[\s*([_A-Za-z][_A-Za-z0-9]*)\s*\]\s*=\s*LAYOUT_?")
+MT_RE = re.compile(r"^(MT|LT)\(|^[A-Z_]+_T\(")
+LAYER_KEY_RE = re.compile(r"^(MO|DF|TG|TO|TT|OSL)\(\d+\)$")
+
+# --- visual design ----------------------------------------------------------
+
+# shifted legends for plain symbol/number keys: token -> shifted char
+SHIFTED_CHARS = {
+    "KC_1": "!", "KC_2": "@", "KC_3": "#", "KC_4": "$", "KC_5": "%",
+    "KC_6": "^", "KC_7": "&", "KC_8": "*", "KC_9": "(", "KC_0": ")",
+    "KC_MINUS": "_", "KC_EQL": "+", "KC_LBRC": "{", "KC_RBRC": "}",
+    "KC_GRV": "~", "KC_SCLN": ":", "KC_QUOTE": '"', "KC_COMM": "<",
+    "KC_DOT": ">", "KC_SLSH": "?", "KC_NUBS": "|", "KC_NUHS": "~",
+}
+
+# accent combos: result token -> glyph (combos.c)
+COMBO_RESULT_CHARS = {
+    "E_GRV": "è", "E_ACUTE": "é", "E_CIRC": "ê", "E_TRM": "ë", "A_GRV": "à",
+    "A_CIRC": "â", "O_CIRC": "ô", "I_CIRC": "î", "I_TRM": "ï", "U_CIRC": "û",
+    "U_GRV": "ù", "U_TRM": "ü", "C_CED": "ç",
+}
+
+# combo line colors by trigger role (mirrors register_combo_color)
+COMBO_ROLE_COLORS = {
+    "KC_H": "#2fa3ad", "KC_M": "#b02f9f", "KC_N": "#d4a017",
+    "KC_E": "#c9ccd4", "KC_A": "#c9ccd4", "KC_U": "#c9ccd4",
+    "KC_I": "#b3702f", "KC_S": "#b3702f", "KC_Y": "#b3702f", "KC_O": "#b3702f",
+    "KC_X": "#2f8f52", "KC_C": "#2f8f52",
+}
+
+# per-layer RGB scheme (mirrors custom_functions.c): token -> (fill, stroke, text)
+_S = {
+    "green": ("#143c24", "#2f8f52", "#7ee0a0"),
+    "red": ("#3d1618", "#b0424a", "#f0a0a8"),
+    "cyan": ("#0f3a40", "#2fa3ad", "#7fdbe4"),
+    "yellow": ("#3d3413", "#b39a2f", "#e8d488"),
+    "orange": ("#3d2412", "#b3702f", "#e8b47f"),
+    "blue": ("#16283f", "#3b6fb0", "#8fb3e8"),
+    "teal": ("#123b36", "#2fa38f", "#7fd8c8"),
+    "purple": ("#2c1b3f", "#7a4bb0", "#c4a0e8"),
+    "magenta": ("#3d1238", "#b02f9f", "#e89fd8"),
+}
+
+MT_STROKE = "#8a6d3b"
+MT_HOLD = "#d4a94e"
+LAYER_STROKE = "#4b5d7a"
+LAYER_TEXT = "#8fb3e8"
+CUSTOM_TEXT = "#ffd9a0"
+TRANS_RECT = "fill: #17191d; stroke: #2e333c; stroke-dasharray: 3 3;"
+BG_COLOR = "#14161a"
+
+
+# --- qmk plumbing -----------------------------------------------------------
+
+def run(cmd, **kw):
+    """Run a command, return CompletedProcess. Raises on failure with stderr shown."""
+    proc = subprocess.run(cmd, capture_output=True, text=True, **kw)
+    if proc.returncode != 0:
+        sys.stderr.write(f"$ {' '.join(cmd)}\n{proc.stderr[-4000:]}\n")
+        sys.exit(f"command failed: {' '.join(cmd[:2])}")
+    return proc
+
+
+def qmk_roots():
+    """Locate the userspace overlay and qmk_home directories: environment
+    variables first, then ~/.config/qmk/qmk.ini, then `qmk config`."""
+    def from_env():
+        return {
+            "overlay": os.environ.get("QMK_USERSPACE"),
+            "home": os.environ.get("QMK_HOME"),
+        }
+
+    def from_ini():
+        out = {}
+        path = Path("~/.config/qmk/qmk.ini").expanduser()
+        if path.is_file():
+            cp = configparser.ConfigParser()
+            cp.read(path)
+            if cp.has_section("user"):
+                out["overlay"] = cp.get("user", "overlay_dir", fallback=None)
+                out["home"] = cp.get("user", "qmk_home", fallback=None)
+        return out
+
+    env, ini = from_env(), from_ini()
+    overlay = env["overlay"] or ini["overlay"]
+    home = env["home"] or ini["home"]
+    if not (overlay or home) and shutil.which("qmk"):
+        try:
+            proc = subprocess.run(["qmk", "config"], capture_output=True, text=True, timeout=15)
+            cfg = dict(line.split("=", 1) for line in proc.stdout.splitlines() if "=" in line)
+            overlay = overlay or cfg.get("user.overlay_dir")
+            home = home or cfg.get("user.qmk_home")
+        except Exception:
+            pass
+    roots = [Path(p) for p in (overlay, home) if p]
+    if not roots:
+        sys.exit("cannot locate QMK directories (set QMK_USERSPACE/QMK_HOME or run `qmk config`)")
+    return roots
+
+
+def find_keymap_c(kb, km, roots):
+    """Locate the keymap.c, searching the userspace overlay and qmk_home,
+    with fallback to the keyboard's family directory (rev-less path)."""
+    parts = kb.split("/")
+    kb_variants = ["/".join(parts[:i]) for i in range(len(parts), 0, -1)]
+    for root in roots:
+        for variant in kb_variants:
+            cand = root / "keyboards" / variant / "keymaps" / km / "keymap.c"
+            if cand.is_file():
+                return cand
+    sys.exit(f"keymap.c not found for -kb {kb} -km {km} (searched userspace + qmk_home)")
+
+
+def resolve_kb(kb, roots):
+    """Return the full keyboard folder name (e.g. .../elora/rev2), resolving
+    a family name against the on-disk keyboard tree. Overlay-only keymap
+    folders (no info.json, no rev subdirs) are skipped."""
+    parts = kb.split("/")
+    for root in roots:
+        base = root / "keyboards" / kb
+        if not base.is_dir():
+            continue
+        if re.match(r"^rev\d+$", parts[-1]):
+            return kb  # explicit revision given
+        revs = sorted(d.name for d in base.iterdir() if d.is_dir() and re.match(r"^rev\d+$", d.name))
+        if revs:
+            sys.stderr.write(f"note: -kb {kb} not found directly, using {kb}/{revs[0]}\n")
+            return f"{kb}/{revs[0]}"
+        if (base / "info.json").is_file() or (base / "keyboard.json").is_file():
+            return kb  # real keyboard without revisions
+    qmk = shutil.which("qmk")
+    if qmk:
+        listed = subprocess.run([qmk, "list-keyboards"], capture_output=True, text=True).stdout.split()
+        matches = sorted(n for n in listed if n.startswith(kb + "/"))
+        if matches:
+            sys.stderr.write(f"note: -kb {kb} not found directly, using {matches[0]}\n")
+            return matches[0]
+    sys.exit(f"keyboard {kb} not found under any QMK keyboards/ tree")
+
+
+def strip_comments(text):
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    text = re.sub(r"//[^\n]*", "", text)
+    return text
+
+
+def extract_layer_names(keymap_c):
+    """Layer names in order, from `[NAME] = LAYOUT_...` designators."""
+    names = []
+    for m in DESIGNATOR_RE.finditer(strip_comments(keymap_c)):
+        name = m.group(1)
+        if name not in names:
+            names.append(name)
+    return [n.lstrip("_") for n in names]
+
+
+def load_object_macros(keymap_dir, keymap_c):
+    """Collect `#define NAME body` object-like macros from keymap.c and every
+    header in the keymap directory (continuation lines joined)."""
+    sources = [strip_comments(keymap_c)]
+    for h in sorted(keymap_dir.glob("*.h")):
+        sources.append(strip_comments(h.read_text(errors="replace")))
+    macros = {}
+    for text in sources:
+        text = re.sub(r"\\\n\s*", " ", text)
+        for m in MACRO_RE.finditer(text):
+            name, body = m.group(1), m.group(2).strip()
+            if body.startswith("("):  # function-like macro, skip
+                continue
+            macros[name] = body
+    return macros
+
+
+def expand(text, macros, iterations=8):
+    for _ in range(iterations):
+        new = text
+        for name, body in macros.items():
+            new = re.sub(rf"\b{re.escape(name)}\b", lambda m, b=body: b, new)
+        if new == text:
+            return text
+        text = new
+    return text
+
+
+def find_layout_json(layout_name, kb, roots):
+    """Find an info.json containing the layout: userspace layouts/*.json first,
+    then the keyboard's info.json in qmk_home, then the QMK metadata API.
+    Returns (path, resolved_layout_name). A plain `LAYOUT` alias is resolved
+    via the keyboard's layout_aliases in its own info.json."""
+    kb_parts = kb.split("/")
+    kb_base = kb_parts[-2] if re.match(r"^rev\d+$", kb_parts[-1]) else kb_parts[-1]
+
+    def read_json(path):
+        try:
+            return json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return None
+
+    def find_in(data, name):
+        if name == "LAYOUT":
+            resolved = data.get("layout_aliases", {}).get("LAYOUT")
+            return resolved if resolved in data.get("layouts", {}) else None
+        return name if name in data.get("layouts", {}) else None
+
+    # 1. userspace custom layout definitions, e.g. layouts/<kb>.json for LAYOUT_<kb>_hlc
+    if layout_name != "LAYOUT":
+        for root in roots:
+            cand = root / "layouts" / f"{kb_base}.json"
+            if cand.is_file() and find_in(read_json(cand), layout_name):
+                return cand, layout_name
+
+    # 2. the keyboard's own info.json (family + revision levels)
+    kb_candidates = []
+    for root in roots:
+        for i in range(len(kb_parts), 0, -1):
+            kb_candidates.append(root / "keyboards" / "/".join(kb_parts[:i]) / "info.json")
+    for cand in kb_candidates:
+        data = read_json(cand)
+        resolved = find_in(data, layout_name) if data else None
+        if resolved:
+            return cand, resolved
+
+    # 3. QMK metadata API as a last resort
+    url = f"https://keyboards.qmk.fm/v1/keyboards/{kb}/info.json"
+    try:
+        data = json.loads(urllib.request.urlopen(url, timeout=10).read())
+        if layout_name == "LAYOUT":
+            resolved = data.get("layout_aliases", {}).get("LAYOUT")
+            layout_name = resolved if resolved in data.get("layouts", {}) else next(iter(data.get("layouts", {})))
+        if layout_name in data.get("layouts", {}):
+            with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+                json.dump(data, f)
+                return pathlib.Path(f.name), layout_name
+    except Exception as exc:
+        sys.exit(f"layout {layout_name} not found locally or via {url} ({exc})")
+    sys.exit(f"layout {layout_name} not found in any known info.json")
+
+
+# --- halcyon modules --------------------------------------------------------
+
+def halcyon_modules_present(keymap_dir):
+    """Scan the keymap dir for HLC_* module defines (config.h / rules.mk / sources)."""
+    text = ""
+    for f in keymap_dir.iterdir():
+        if f.is_file() and (f.suffix in (".h", ".c") or f.name in ("rules.mk", "config.h", "keymap.c")):
+            text += f.read_text(errors="replace") + "\n"
+    found = []
+    for m in re.finditer(r"^\s*#\s*(?:define|ifdef|ifndef)\s+(HLC_\w+)", text, re.M):
+        if m.group(1) not in ("HLC_NONE",) and m.group(1) not in found:
+            found.append(m.group(1))
+    return found
+
+
+def module_slot_indices(layout_entries):
+    """Indices of the halcyon-module slot row: the detached 10-key bottom row."""
+    ys = {}
+    for i, k in enumerate(layout_entries):
+        ys.setdefault(round(float(k.get("y", 0)), 3), []).append(i)
+    if not ys:
+        return []
+    max_y = max(ys)
+    idxs = ys[max_y]
+    others = [y for y in ys if y != max_y]
+    if len(idxs) == 10 and others and (max_y - max(others)) >= 1.0:
+        return idxs
+    return []
+
+
+# --- combos -----------------------------------------------------------------
+
+def parse_combos(combos_c, base_tokens, base_name):
+    """Extract (trigger tokens, result token) combos from combos.c content."""
+    combos = []
+    arrays = dict(re.findall(r"const\s+uint16_t\s+PROGMEM\s+(\w+)\[\]\s*=\s*\{(.*?)\};", combos_c, re.S))
+    entries = re.findall(r"\[(\w+)\]\s*=\s*COMBO\(\s*(\w+)\s*,\s*(\w+)\s*\)", combos_c)
+    for _, arr_name, result in entries:
+        keys = re.findall(r"\b(KC_\w+)\b", arrays.get(arr_name, ""))
+        if len(keys) < 2:
+            continue
+        idxs = []
+        for k in keys:
+            try:
+                idxs.append(base_tokens.index(k))
+            except ValueError:
+                idxs = None
+                break
+        if not idxs:
+            continue
+        combos.append({"key_positions": idxs, "key": COMBO_RESULT_CHARS.get(result, result), "layers": [base_name]})
+    return combos
+
+
+# --- styling ----------------------------------------------------------------
+
+# color macro/constant resolution (mirrors tools/keymap-html)
+COLOR_MACRO_RE = re.compile(r"^\s*#define\s+(\w+)\s+([^\s,]+)\s*,\s*([^\s,]+)\s*,\s*([^\s,]+)", re.M)
+_NUM_RE = re.compile(r"^(\d+|0x[0-9a-fA-F]+)$")
+
+
+def resolve_color_constants(text):
+    """Resolve `#define C_* r, g, b` macros (incl. aliases like `C_COMBO_ACUTE C_GOLD`)
+    into {name: (r, g, b)}."""
+    values = {}
+    for m in COLOR_MACRO_RE.finditer(text):
+        nums = []
+        for v in (m.group(2), m.group(3), m.group(4)):
+            v = v.strip()
+            if _NUM_RE.match(v):
+                nums.append(int(v, 0))
+            else:
+                break
+        if len(nums) == 3:
+            values[m.group(1)] = tuple(nums)
+    for m in re.finditer(r"^\s*#define\s+(\w+)\s+(\w+)\s*(//.*)?$", text, re.M):
+        name, ref = m.group(1), m.group(2)
+        if ref in values and name not in values:
+            values[name] = values[ref]
+    return values
+
+
+def parse_layer_colors(custom_functions_c, macros, layer_names):
+    """register_color_for_keycode(_NAV, KC_HOME, r, g, b) calls ->
+    {LAYER_NAME: {TOKEN: (fill, stroke, text)}} — colors parsed from the
+    firmware so the SVG always matches the actual LED registrations."""
+    consts = resolve_color_constants(custom_functions_c)
+    out = {}
+    for m in re.finditer(r"register_color_for_keycode\((\w+),\s*([\w()]+),\s*([^)]+)\)", custom_functions_c):
+        layer = m.group(1).lstrip("_")
+        tok = expand(m.group(2), macros)
+        for idx, name in enumerate(layer_names):
+            tok = re.sub(rf"\b_{re.escape(name)}\b", str(idx), tok)
+        arg = m.group(3)
+        rgb = None
+        if re.match(r"^\s*\d+\s*,\s*\d+\s*,\s*\d+\s*$", arg):
+            rgb = tuple(int(x) for x in re.split(r"\s*,\s*", arg))
+        else:
+            rgb = consts.get(arg.strip())
+        if rgb is None:
+            continue
+        fill, stroke, text = _S_spec(rgb)
+        out.setdefault(layer, {})[tok] = (fill, stroke, text)
+    return out
+
+
+def _S_spec(rgb):
+    """(r, g, b) -> (dark fill, border stroke, light text) matching the theme style."""
+    return (
+        "#%02x%02x%02x" % tuple(int(c * 0.22) for c in rgb),
+        "#%02x%02x%02x" % rgb,
+        "#%02x%02x%02x" % tuple(int(c + (255 - c) * 0.6) for c in rgb),
+    )
+
+
+def build_css(layers_raw, layer_names, held_positions, layer_schemes):
+    """Per-key CSS rules: type colors + per-layer RGB scheme. layer_schemes is a
+    {layer: {token: (fill, stroke, text)}} dict parsed from the firmware.
+    Note: cairosvg needs the tspan percentage font-size styles normalized
+    (see normalize_font_styles) or filled tspans render as huge blobs."""
+    rules = [f"rect.key.trans {{ {TRANS_RECT} }}"]
+    for name, tokens in zip(layer_names, layers_raw):
+        scheme = layer_schemes.get(name, {})
+        for i, tok in enumerate(tokens):
+            if (name, i) in held_positions or tok == "KC_TRNS":
+                continue
+            sel = f"g.layer-{name} g.keypos-{i}"
+            colors = scheme.get(tok)
+            if colors:
+                fill, stroke, text = colors
+                rules.append(f"{sel} rect.key {{ fill: {fill}; stroke: {stroke}; }}")
+                rules.append(f"{sel} text.key.tap {{ fill: {text}; }}")
+            elif MT_RE.match(tok):
+                rules.append(f"{sel} rect.key {{ stroke: {MT_STROKE}; }}")
+                rules.append(f"{sel} text.key.hold {{ fill: {MT_HOLD}; }}")
+            elif LAYER_KEY_RE.match(tok):
+                rules.append(f"{sel} rect.key {{ stroke: {LAYER_STROKE}; }}")
+                rules.append(f"{sel} text.key.tap {{ fill: {LAYER_TEXT}; }}")
+            elif not tok.startswith("KC_"):
+                rules.append(f"{sel} text.key.tap {{ fill: {CUSTOM_TEXT}; }}")
+    return "\n".join(rules)
+
+
+def normalize_font_styles(svg):
+    """cairosvg misrenders tspans with percentage font-size styles when they
+    carry a fill (huge filled blobs). Convert style="font-size: N%" into an
+    absolute font-size attribute (base size is 14px)."""
+    return re.sub(r'style="font-size: ([\d.]+)%"', lambda m: f'font-size="{round(14 * float(m.group(1)) / 100, 2)}"', svg)
+
+
+_KEY_GROUP_RE = re.compile(r'<g transform="[^"]*" class="key[^"]*">(.*?)</g>', re.S)
+
+
+def fix_shifted_legends(svg):
+    """When a key shows a shifted legend, keep both legends centered: tap in
+    the middle, shifted char on top with padding from the cap border."""
+    def fix(m):
+        inner = m.group(1)
+        if 'class="key shifted"' not in inner:
+            return m.group(0)
+        inner = re.sub(r'(<text x="0" y="0" class="key tap">)', r'<text x="0" y="2" class="key tap">', inner, count=1)
+        inner = re.sub(r'(<text x="0" y="-24" class="key shifted">)', r'<text x="0" y="-23" class="key shifted">', inner, count=1)
+        return m.group(0).replace(m.group(1), inner)
+
+    return _KEY_GROUP_RE.sub(fix, svg)
+
+
+def add_combo_overlay(svg, combos, combo_triggers, base_name, base_tokens):
+    """Draw F15-gated accent combos: a small colored dot on each trigger key
+    (its own role color), connector lines routed UNDER the keycaps (visible
+    only in the gaps between keys), and result badges in a two-column grid at
+    the center of the board."""
+    if not combos:
+        return svg
+    lm = re.search(
+        rf'(<g transform="translate\(30, (-?\d+)\)" class="layer-{re.escape(base_name)}">)(.*?)(</g>\n</g>\n</g>\n)',
+        svg,
+        re.S,
+    )
+    if not lm:
+        return svg
+    layer_open, layer_y, body, close = lm.group(1), int(lm.group(2)), lm.group(3), lm.group(4)
+    # keys live inside per-row groups (<g transform="translate(...)"> without a
+    # class); track the current row offset while scanning for key groups
+    centers = {}
+    rx = ry = 0.0
+    for km in re.finditer(r'<g transform="translate\((-?[\d.]+), (-?[\d.]+)\)"( class="([^"]*)")?', body):
+        tx, ty = float(km.group(1)), float(km.group(2))
+        cls = km.group(4)
+        if cls is None:
+            rx, ry = tx, ty  # row group (or other unclassed group)
+        elif 'keypos-' in cls:
+            kp = int(re.search(r'keypos-(\d+)', cls).group(1))
+            # board coordinates: layer group sits at translate(30, layer_y)
+            centers[kp] = (rx + tx + 30, ry + ty + layer_y)
+    if not centers:
+        return svg
+
+    mid = (min(c[0] for c in centers.values()) + max(c[0] for c in centers.values())) / 2
+    center_keys = [c for c in centers.values() if mid - 40 <= c[0] <= mid + 40]
+    top_limit = min((min(c[1] for c in center_keys) if center_keys else 10**9) - 20, 260)
+
+    order = sorted(
+        range(len(combos)),
+        key=lambda i: sum(centers[p][1] for p in combos[i]["key_positions"]) / len(combos[i]["key_positions"]),
+    )
+    n = len(combos)
+    nrows = (n + 1) // 2
+    y_start, y_end = 120, max(120, top_limit - 14)
+    ys = [y_start + (y_end - y_start) * r / max(1, nrows - 1) for r in range(nrows)]
+    xs = [mid - 24, mid + 24]
+
+    lines, badges, dots = [], [], {}
+    for idx in order:
+        combo = combos[idx]
+        kp1, kp2 = combo["key_positions"]
+        p1, p2 = centers[kp1], centers[kp2]
+        color = COMBO_ROLE_COLORS.get(combo_triggers[idx], "#7f7f7f")
+        glyph = combo["key"] if isinstance(combo["key"], str) else combo["key"].get("t", "?")
+        bx, by = xs[idx % 2], ys[idx // 2]
+        # dot color = the key's own role (H cyan, M magenta, vowels white, N gold, I/S/Y/O orange, X/C green)
+        for kp, p in ((kp1, p1), (kp2, p2)):
+            dots[p] = COMBO_ROLE_COLORS.get(base_tokens[kp], "#7f7f7f")
+        # lines in layer-relative coordinates: they sit inside the layer group
+        # before the keys, so they only show in the gaps between keycaps
+        ox, oy = 30, layer_y
+        for p in (p1, p2):
+            lines.append(
+                f'<path d="M{p[0] - ox},{p[1] - oy} L{bx - ox},{by - oy}" class="combo-line" '
+                f'stroke="{color}" stroke-width="1.5" opacity="0.75" fill="none"/>'
+            )
+        badges.append(
+            f'<g transform="translate({bx}, {by})"><circle r="9" fill="#1b1e24" stroke="{color}" stroke-width="1.5"/>'
+            f'<text fill="#e8eaf0" font-size="11" text-anchor="middle" dominant-baseline="central">{glyph}</text></g>'
+        )
+    for (cx, cy), color in dots.items():
+        badges.append(f'<circle cx="{cx + 15}" cy="{cy - 15}" r="3.5" fill="{color}"/>')
+
+    # dots and badges go after the layer group (on top, absolute board coords);
+    # lines go right after the layer group opening (under the keys) — do the
+    # badge insertion first so its search string still matches the raw svg
+    svg = svg.replace(layer_open + body + close, layer_open + body + close + "".join(badges) + "\n", 1)
+    return svg.replace(layer_open, layer_open + "".join(lines) + "\n", 1)
+
+
+
+
+def add_background_and_legend(svg, extra_note):
+    """Inject a background rect and a color legend into the SVG string."""
+    m = re.match(r"<svg width=\"(\d+)\" height=\"(\d+)\" viewBox=\"0 0 (\d+) (\d+)\"", svg)
+    if not m:
+        return svg
+    w, h = int(m.group(1)), int(m.group(2))
+    bg = f'<rect x="0" y="0" width="{w}" height="{h}" fill="{BG_COLOR}"/>\n'
+    items = [
+        ("rect", "#3f4750", "#8a6d3b", "mod-tap", False),
+        ("rect", "#3f4750", "#4b5d7a", "layer key", False),
+        ("rect", "#3d3413", "#b39a2f", "custom key", False),
+        ("rect", "#17191d", "#2e333c", "transparent", True),
+        ("dot", "#2fa3ad", "#2fa3ad", "combo key", False),
+        ("badge", "#1b1e24", "#2fa3ad", "combo result", False),
+    ]
+    parts = []
+    x = 0
+    for shape, fill, stroke, label, dash in items:
+        if shape == "rect":
+            d = ' stroke-dasharray="3 3"' if dash else ""
+            parts.append(f'<rect x="{x}" y="-8" width="12" height="12" rx="3" fill="{fill}" stroke="{stroke}"{d}/>')
+        elif shape == "dot":
+            parts.append(f'<circle cx="{x + 6}" cy="-2" r="4" fill="{fill}"/>')
+        else:  # badge
+            parts.append(f'<circle cx="{x + 6}" cy="-2" r="7" fill="{fill}" stroke="{stroke}" stroke-width="1.5"/>')
+        parts.append(f'<text x="{x + 17}" y="0">{label}</text>')
+        x += 17 + 11 * len(label) + 16
+    note = f"<text x=\"{x}\" y=\"0\" fill=\"#7e8184\">{extra_note}</text>" if extra_note else ""
+    legend = (
+        f'<g transform="translate(30, {h - 30})" class="viz-legend" font-family="SFMono-Regular,Consolas,monospace" '
+        f'font-size="11" fill="#d1d6db">{"".join(parts)}{note}</g>\n'
+    )
+    # background rect goes right after the <svg> tag (behind everything);
+    # the legend goes last (on top, in the bottom padding area)
+    svg = re.sub(r">\n<style>", ">\n" + bg + "<style>", svg, count=1)
+    return svg.replace("</svg>\n", legend + "</svg>\n", 1)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("-kb", "--keyboard", required=True, help="keyboard, e.g. splitkb/halcyon/elora")
+    ap.add_argument("-km", "--keymap", required=True, help="keymap name, e.g. colemakdh_hlc")
+    ap.add_argument("-o", "--output", help="output directory (default: <userspace>/viz/<kb>/<km>)")
+    ap.add_argument("--layout", help="layout macro name (default: whatever the keymap.c uses)")
+    ap.add_argument("--no-png", action="store_true", help="skip PNG conversion")
+    ap.add_argument("--halcyon-modules", action="store_true",
+                    help="keep the halcyon-module slot row even if no HLC_* modules are detected")
+    args = ap.parse_args()
+
+    roots = qmk_roots()
+    userspace_root = roots[0] if (roots[0] / "keyboards").is_dir() else (roots[1] if len(roots) > 1 else roots[0])
+    keymap_c_path = find_keymap_c(args.keyboard, args.keymap, roots)
+    kb = resolve_kb(args.keyboard, roots)
+    keymap_dir = keymap_c_path.parent
+
+    keymap_c = keymap_c_path.read_text(errors="replace")
+    layer_names = extract_layer_names(keymap_c)
+    macros = load_object_macros(keymap_dir, keymap_c)
+    expanded = expand(keymap_c, macros)
+    for idx, name in enumerate(layer_names):
+        expanded = re.sub(rf"\b_{re.escape(name)}\b", str(idx), expanded)
+
+    if not shutil.which("qmk"):
+        sys.exit("qmk CLI not found on PATH — required to convert keymap.c to keymap.json")
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="keymap-viz-"))
+    (tmp / "keymap_expanded.c").write_text(expanded)
+    keymap_json_path = tmp / "keymap.json"
+    run(["qmk", "c2json", "--no-cpp", "-kb", kb, "-km", args.keymap,
+         str(tmp / "keymap_expanded.c"), "-o", str(keymap_json_path)])
+
+    keymap_json = json.loads(keymap_json_path.read_text())
+    layout_name = args.layout or keymap_json.get("layout")
+    if not layout_name:
+        sys.exit("could not determine the layout macro used by the keymap")
+    layout_json_path, layout_name = find_layout_json(layout_name, kb, roots)
+
+    # --- halcyon module row -------------------------------------------------
+    layout_data = json.loads(Path(layout_json_path).read_text())
+    layout_entries = layout_data["layouts"][layout_name]["layout"]
+    modules = halcyon_modules_present(keymap_dir)
+    keep_module_row = args.halcyon_modules or bool(modules)
+    mod_indices = module_slot_indices(layout_entries) if not keep_module_row else []
+    if mod_indices:
+        keep = [i for i in range(len(layout_entries)) if i not in set(mod_indices)]
+        keymap_json["layers"] = [[t for i, t in enumerate(layer) if i in keep] for layer in keymap_json["layers"]]
+        keymap_json_path.write_text(json.dumps(keymap_json))
+        trimmed = tmp / "layout_trimmed.json"
+        trimmed.write_text(json.dumps({"layouts": {layout_name: {"layout": [layout_entries[i] for i in keep]}}}))
+        layout_json_path = trimmed
+        print(f"module row: hidden ({len(mod_indices)} keys, no HLC modules detected — use --halcyon-modules to keep)")
+    elif keep_module_row:
+        print(f"module row: shown ({'--halcyon-modules' if args.halcyon_modules else 'HLC modules: ' + ', '.join(modules)})")
+
+    layers_raw = keymap_json["layers"]
+    base_name = layer_names[0] if layer_names else "L0"
+    base_tokens = layers_raw[0]
+
+    # --- combos (F15-gated accent chords, drawn on the base layer) ----------
+    combos = []
+    combo_triggers = []
+    combos_c = keymap_dir / "combos.c"
+    if combos_c.is_file() and len(base_tokens) >= 2:
+        combos = parse_combos(combos_c.read_text(errors="replace"), base_tokens, base_name)
+        combo_triggers = [base_tokens[c["key_positions"][0]] for c in combos]
+
+    # --- layer colors parsed from the firmware (matches the actual LEDs) -----
+    layer_schemes = {}
+    cf_path = keymap_dir / "custom_functions.c"
+    if cf_path.is_file():
+        layer_schemes = parse_layer_colors(cf_path.read_text(errors="replace"), macros, layer_names)
+
+    # --- parse with keymap-drawer -------------------------------------------
+    from keymap_drawer.config import Config, DrawConfig
+    from keymap_drawer.parse import QmkJsonParser
+
+    with keymap_json_path.open("rt", encoding="utf-8") as f:
+        keymap_yaml = QmkJsonParser(Config().parse_config, columns=None, layer_names=layer_names or None).parse(f)
+    keymap_yaml["combos"] = combos
+
+    # shifted legends for plain symbol keys (1 → 1!), including mod-taps whose
+    # tap key has a shift variant (e.g. CTL_QUOT shows ' and ")
+    for name, tokens in zip(layer_names, layers_raw):
+        layer_keys = keymap_yaml["layers"].get(name, [])
+        for i, (tok, key) in enumerate(zip(tokens, layer_keys)):
+            mt = re.match(r"^MT\((MOD_\w+),\s*(\w+)\)$", tok)
+            tap_tok = mt.group(2) if mt else tok
+            if tap_tok not in SHIFTED_CHARS:
+                continue
+            if isinstance(key, str):
+                layer_keys[i] = {"t": key, "s": SHIFTED_CHARS[tap_tok]}
+            elif isinstance(key, dict):
+                if "s" not in key:
+                    key["s"] = SHIFTED_CHARS[tap_tok]
+            elif not key.shifted:
+                key.shifted = SHIFTED_CHARS[tap_tok]
+
+    # --- draw (pass 1: detect held keys, pass 2: apply colors) --------------
+    from keymap_drawer.draw import KeymapDrawer
+
+    layout_spec = {"qmk_info_json": str(layout_json_path), "layout_name": layout_name}
+    held = set()
+
+    def draw_once(css):
+        config = Config()
+        config.draw_config = DrawConfig.model_validate(config.draw_config.model_dump()
+                                     | {"dark_mode": True, "svg_extra_style": css, "shrink_wide_legends": 5})
+        buf = io.StringIO()
+        KeymapDrawer(config=config, out=buf, layers=keymap_yaml["layers"], layout=layout_spec,
+                     combos=[]).print_board()
+        return buf.getvalue()
+
+    svg = draw_once("")
+    for lm in re.finditer(r'class="layer-([A-Za-z0-9_]+)"(.*?)</g>\n</g>\n', svg, re.S):
+        for km_ in re.finditer(r'class="key held keypos-(\d+)"', lm.group(2)):
+            held.add((lm.group(1), int(km_.group(1))))
+
+    css = build_css(layers_raw, layer_names, held, layer_schemes)
+    svg = draw_once(css)
+    svg = normalize_font_styles(svg)
+    svg = fix_shifted_legends(svg)
+    svg = add_combo_overlay(svg, combos, combo_triggers, base_name, layers_raw[0])
+
+    extra_note = ""
+    if mod_indices:
+        extra_note = "bottom module row hidden (no HLC modules)"
+    svg = add_background_and_legend(svg, extra_note)
+
+    outdir = Path(args.output) if args.output else userspace_root / "viz" / kb / args.keymap
+    outdir.mkdir(parents=True, exist_ok=True)
+    svg_path = outdir / "keymap.svg"
+    svg_path.write_text(svg, encoding="utf-8")
+
+    png_path = None
+    if not args.no_png:
+        try:
+            import cairosvg
+
+            png_path = outdir / "keymap.png"
+            cairosvg.svg2png(url=str(svg_path), write_to=str(png_path))
+        except Exception as exc:
+            sys.stderr.write(f"warning: cairosvg failed ({exc}), trying rsvg-convert\n")
+            rsvg = shutil.which("rsvg-convert")
+            if rsvg:
+                png_path = outdir / "keymap.png"
+                run([rsvg, "-o", str(png_path), str(svg_path)])
+            else:
+                png_path = None
+                sys.stderr.write("warning: no PNG converter available (cairosvg or rsvg-convert), skipping PNG\n")
+
+    print(f"keyboard : {kb}")
+    print(f"keymap   : {args.keymap} ({keymap_c_path})")
+    print(f"layout   : {layout_name} ({layout_json_path})")
+    print(f"layers   : {', '.join(layer_names) if layer_names else 'unnamed'}")
+    if combos:
+        print(f"combos   : {len(combos)} accent chords (drawn on {base_name}, require F15)")
+    print(f"svg      : {svg_path}")
+    if png_path:
+        print(f"png      : {png_path}")
+
+
+if __name__ == "__main__":
+    main()
